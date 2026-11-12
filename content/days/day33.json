@@ -1,0 +1,53 @@
+{
+  "day": 33,
+  "week": 6,
+  "title": "Zero-Days in the AI Era",
+  "theme": "Bonus · AI & Security",
+  "minutes": 35,
+  "mindset": "The gap between 'bug discovered' and 'bug exploited' is shrinking, so how fast you patch is now a security control in itself.",
+  "cards": [
+    { "title": "Zero-day vs n-day, refreshed", "body": "A **zero-day** is a flaw attackers use before the vendor knows or has a fix: defenders have had 'zero days' to prepare. Once a patch is out, it becomes an **n-day**. Here's the twist: most real breaches use n-days, because organisations patch slowly. Attackers read the patch, work out the bug, and race the slow patchers. That's why CISA's KEV list (your Threats tab) matters so much." },
+    { "title": "AI is finding bugs too", "body": "AI is now helping researchers **discover vulnerabilities**. In 2024 Google's 'Big Sleep' project reported an AI agent finding a real, exploitable memory bug in the SQLite database before release. DARPA's AI Cyber Challenge (2023–2025) had teams build AI systems that find **and patch** bugs automatically in open-source code. The same speed-up is available to attackers, so the race is on for defenders to use it first." },
+    { "title": "What 'vibe hacking' means", "body": "**Vibe hacking** is a nickname for attackers leaning on AI agents to do much of the hacking work for them: scanning, writing scripts, sorting stolen data, even drafting ransom notes. In August 2025, Anthropic publicly reported banning a criminal who had used its Claude Code tool in a **data-extortion campaign** against around 17 organisations. Lesson: AI lowers the skill needed to run an attack, so **more attackers** can do more." },
+    { "title": "What defenders do differently", "body": "If attackers move faster, defenders must too. **Patch by risk**: anything on CISA KEV or internet-facing gets fixed first, often within days. **Shrink attack surface**: fewer exposed services means fewer doors. **Assume breach**: good logging, EDR and segmentation so one compromised machine isn't game over. And **use AI defensively**: faster triage, code review and detection." },
+    { "title": "Responsible disclosure", "body": "If you ever find a real bug, the professional path is **responsible (coordinated) disclosure**: report it privately to the vendor or through their bug bounty or security.txt contact, give them time to fix it (often 90 days), then publish. Selling or using it instead is how careers and lives get ruined. Good security people are known for **trust**." }
+  ],
+  "attacks": [
+    {
+      "name": "Patch-gap exploitation (n-day race)",
+      "analogy": "A shop announces 'we fixed the broken back lock', and burglars rush to every branch that hasn't installed the new lock yet.",
+      "how": ["A vendor releases a security patch with an advisory.", "Attackers compare old and new versions to understand the flaw (patch diffing), increasingly with AI help.", "They scan the internet for systems still running the vulnerable version.", "Unpatched systems are compromised, often within days of the patch."],
+      "thinking": "\"A patch is a map to the bug. Every organisation that patches slowly is a target I can find with a scan.\"",
+      "signs": "Exploit attempts in web/VPN logs matching the advisory's patterns, new KEV entries for products you run, unexpected processes or accounts on edge devices.",
+      "defend": "Asset inventory (know what you run), subscribe to KEV and vendor advisories, emergency patching for internet-facing systems, virtual patching (WAF rules) while you test, and compromise-checks after patching."
+    }
+  ],
+  "story": { "title": "MOVEit Transfer (2023)", "body": "In May 2023, the Cl0p ransomware group exploited a **zero-day SQL injection** in Progress Software's MOVEit Transfer, a file-sharing product used by thousands of organisations. They stole data at mass scale before most victims could patch, affecting governments, banks, airlines and universities worldwide; thousands of organisations and tens of millions of people were impacted. Lesson: one zero-day in a widely used, internet-facing product can become a global incident. Asset inventory and rapid patching are essential." },
+  "lab": {
+    "title": "Measure the patch race with real KEV data",
+    "goal": "Use the live CISA KEV feed to see how many exploited bugs are added each month and which vendors appear most.",
+    "steps": ["Open the Threats tab in this app and read the three newest entries.", "Download the KEV feed with the command below.", "Count entries added in the last 30 days and the top vendors.", "Pick one entry, find the vendor advisory, and write a 3-line summary: product, weakness, required action.", "Ask yourself: if my company ran this, how fast could we patch?"],
+    "commands": [
+      { "cmd": "curl -s -o kev.json https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json", "explain": "Downloads the official list of vulnerabilities known to be exploited in the wild." },
+      { "cmd": "python3 -c \"import json,datetime as d;v=json.load(open('kev.json'))['vulnerabilities'];c=str(d.date.today()-d.timedelta(30));print(len([x for x in v if x['dateAdded']>=c]),'added in last 30 days')\"", "explain": "Counts how many exploited vulnerabilities were added to KEV in the past 30 days." },
+      { "cmd": "python3 -c \"import json,collections;v=json.load(open('kev.json'))['vulnerabilities'];print(collections.Counter(x['vendorProject'] for x in v).most_common(8))\"", "explain": "Shows the 8 vendors with the most known-exploited vulnerabilities, a hint at where attackers focus." }
+    ],
+    "safety": "This lab only reads public threat data. Never scan or test systems for these vulnerabilities unless you own them or have written permission."
+  },
+  "hunt": "A company's VPN appliance vendor publishes a critical patch on Monday. IT schedules it for 'the next monthly maintenance window' in three weeks, because the VPN 'is behind the firewall anyway'. What's wrong?\n\nAnswer: VPN appliances are internet-facing by design; they are the edge. Attackers often weaponise edge-device patches within days, and these products appear on KEV constantly. Critical, internet-facing patches need an emergency process (days, not weeks), with temporary mitigations and a compromise check if exploitation was possible before patching.",
+  "terms": [
+    { "term": "N-day", "def": "A vulnerability that's already public and patched, but still exploitable on systems that haven't updated.", "use": "\"Most of our risk is n-days on unpatched edge devices, not exotic zero-days.\"" },
+    { "term": "Patch diffing", "def": "Comparing software before and after a patch to understand the fixed bug.", "use": "\"Assume attackers will patch-diff this within 48 hours.\"" },
+    { "term": "Vibe hacking", "def": "Slang for attackers relying on AI agents to perform much of an attack's work.", "use": "\"Vibe hacking lowers the skill bar, so expect more, faster attacks from less-skilled actors.\"" },
+    { "term": "Coordinated disclosure", "def": "Privately reporting a vulnerability to the vendor and allowing time for a fix before publishing.", "use": "\"We reported it under coordinated disclosure with a 90-day deadline.\"" },
+    { "term": "Attack surface", "def": "All the points where an attacker could try to get in, such as exposed services, apps and accounts.", "use": "\"Decommissioning that old VPN portal shrank our attack surface overnight.\"" }
+  ],
+  "quiz": [
+    { "q": "Why are n-days often more dangerous in practice than zero-days?", "options": ["They're harder to exploit", "Many organisations patch slowly, leaving known bugs open", "They only affect old computers", "They can't be detected"], "answer": 1, "why": "Once a patch exists, attackers can study it and target the many systems that haven't updated." },
+    { "q": "What does 'vibe hacking' describe?", "options": ["Hacking music apps", "Attackers relying on AI agents to do much of the work", "Hacking by guessing passwords", "Testing your own code"], "answer": 1, "why": "It's slang for AI-assisted attacks that lower the skill needed." },
+    { "q": "Which should be patched first?", "options": ["An internal printer bug with no known exploit", "An internet-facing VPN flaw listed on CISA KEV", "A cosmetic bug in the intranet", "A laptop wallpaper app"], "answer": 1, "why": "Known exploited plus internet-facing equals the highest real-world risk." },
+    { "q": "You find a real bug in a company's website by accident. The professional move?", "options": ["Post it on social media", "Sell it", "Report it privately via their security contact or bug bounty", "Test it further on their live site"], "answer": 2, "why": "Coordinated disclosure protects users and your reputation. Don't keep testing without permission." }
+  ],
+  "talk": { "scenario": "In an interview you're asked: 'How is AI changing vulnerability management?'", "model": "AI is compressing timelines on both sides. Attackers can patch-diff and weaponise n-days faster, and 'vibe hacking' lets less-skilled actors run campaigns, as Anthropic's 2025 report on an AI-assisted extortion operation showed. Defenders are also using AI, from Google's Big Sleep finding bugs to DARPA's AIxCC auto-patching. Practically, I'd prioritise by CISA KEV and internet exposure, keep an accurate asset inventory, and treat critical edge-device patches as emergencies measured in days." },
+  "reflect": "If attackers can now turn a patch into an exploit within days, what would you change about how a company decides when to patch? Write your 3-step plan."
+}

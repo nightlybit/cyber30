@@ -1,0 +1,176 @@
+{
+  "day": 34,
+  "week": 6,
+  "title": "Taking Software Apart",
+  "theme": "Bonus · Reverse Engineering",
+  "minutes": 45,
+  "mindset": "A program is a set of decisions written down; reverse engineering is reading those decisions without the author's notes.",
+  "cards": [
+    {
+      "title": "What reverse engineering is",
+      "body": "**Reverse engineering (RE)** means working out how something works by taking it apart, without the original design documents. A mechanic who opens an unfamiliar engine to see how it runs is doing RE. In security we do it to software: to understand **malware** (what does this virus actually do?), find **vulnerabilities** in closed-source programs, or check that an app does what it claims."
+    },
+    {
+      "title": "From source code to machine code",
+      "body": "Developers write **source code** in readable languages like C. A **compiler** translates it into **machine code**: raw numbers the CPU runs. The comments, variable names and structure mostly disappear, like turning a recipe into a finished cake. RE tries to get from the cake back to a believable recipe, using a **disassembler** (shows CPU instructions as **assembly**) and a **decompiler** (guesses C-like code)."
+    },
+    {
+      "title": "Static vs dynamic analysis",
+      "body": "**Static analysis** means studying the program **without running it**: reading its strings, imports and disassembly. It's safe, like reading a letter without opening the parcel it came in. **Dynamic analysis** means **running** it in a controlled place and watching what it does: files touched, network connections, memory. It's more revealing but riskier, so with suspicious files it's done only inside an isolated virtual machine."
+    },
+    {
+      "title": "The first five minutes on any file",
+      "body": "Pros always start with quick, safe questions. **What is it?** (`file`), **what text is inside?** (`strings` often reveals URLs, error messages, passwords), **what libraries and functions does it use?** (imports hint at behaviour: networking, encryption, keylogging), **is it packed or obfuscated?** (very few readable strings is a clue), and **is it known?** (compare its hash with threat-intel databases)."
+    },
+    {
+      "title": "The tools on your Kali box",
+      "body": "**Ghidra** (free, made by the NSA) is a full disassembler and decompiler with a friendly interface. **radare2** and **objdump** work from the terminal. **gdb** is a debugger: it lets you pause a running program, step one instruction at a time and inspect memory. For Android apps, **jadx** turns an APK back into readable Java. You'll use some of these on a harmless program you compile yourself."
+    },
+    {
+      "title": "The reverse engineer's mindset",
+      "body": "Reversers look for **decisions**: 'Where does it check the password? Where does it decide you're licensed? Where does it phone home?' Find the comparison, then trace backwards to where the data comes from. Defenders use the same thinking to write **detection signatures** (like YARA rules) from what malware does. Patience matters more than genius: one function at a time."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Hard-coded secrets found by reversing",
+      "analogy": "Hiding the spare key under the doormat: anyone who lifts the mat finds it, however strong the door is.",
+      "how": [
+        "A developer embeds an API key, password or encryption key directly in the app.",
+        "The app is shipped to users as a compiled file (an APK, EXE or firmware).",
+        "A reverser runs `strings` or a decompiler and finds the secret in minutes.",
+        "The secret is used to access the company's backend or decrypt data."
+      ],
+      "thinking": "\"Anything shipped to the user's device is in the attacker's hands. Compiling isn't hiding; it's just a different language.\"",
+      "signs": "API keys used from unexpected IPs or at unusual volume; secret-scanning alerts; leaked keys appearing on GitHub or paste sites.",
+      "defend": "Never ship secrets in client apps; use short-lived tokens issued per user by a server; rotate any key that was ever embedded; run secret-scanning in CI; assume the client is fully readable."
+    }
+  ],
+  "story": {
+    "title": "WannaCry's kill switch (2017)",
+    "body": "When WannaCry ransomware spread worldwide in May 2017, security researcher Marcus Hutchins **reverse engineered** a sample and noticed it checked whether an odd, unregistered web domain existed before spreading. He registered the domain, and the malware's check made it stop spreading on newly infected machines, dramatically slowing the outbreak. Lesson: reading malware's **decisions** can reveal a way to stop it. That is reverse engineering as defence."
+  },
+  "lab": {
+    "title": "Reverse your own tiny 'crackme'",
+    "goal": "Compile a small password-check program, then find the password using only RE tools, the way analysts inspect unknown binaries.",
+    "steps": [
+      "Install the compiler and binary tools if your Kali is a minimal install.",
+      "Create the C file with the first command (it checks a password).",
+      "Compile it with gcc.",
+      "Pretend you don't know the password: run `file` and `strings` on the binary.",
+      "Use objdump to find the `strcmp` call, which is the decision point.",
+      "Optional: open it in Ghidra (`ghidra` or install with `sudo apt install ghidra`) and read the decompiled main function."
+    ],
+    "commands": [
+      {
+        "cmd": "sudo apt install -y gcc binutils",
+        "explain": "Installs **gcc** (the C compiler) and **binutils** (which includes `strings` and `objdump`). Skip it if they're already installed."
+      },
+      {
+        "cmd": "printf '#include <stdio.h>\\n#include <string.h>\\nint main(){char p[64];printf(\"Password: \");scanf(\"%%63s\",p);if(strcmp(p,\"kali-r3v\")==0)puts(\"Access granted\");else puts(\"Nope\");return 0;}\\n' > crackme.c",
+        "explain": "Writes a tiny C program that compares your input to a hidden password."
+      },
+      {
+        "cmd": "gcc -o crackme crackme.c && ./crackme",
+        "explain": "Compiles it into machine code and runs it. Try a wrong password."
+      },
+      {
+        "cmd": "file crackme",
+        "explain": "Identifies the file type: an ELF 64-bit executable for Linux."
+      },
+      {
+        "cmd": "strings -n 6 crackme | head -30",
+        "explain": "Lists readable text inside the binary. Spot anything that looks like a password? This is why secrets must never be hard-coded."
+      },
+      {
+        "cmd": "objdump -d -M intel crackme | grep -B8 'call.*strcmp'",
+        "explain": "Disassembles the program and shows the instructions just before the `strcmp` call: the exact place where the decision is made."
+      }
+    ],
+    "safety": "Reverse only software you wrote, open-source code, crackme challenges built for practice (e.g. crackmes.one, picoCTF), or samples in an isolated lab VM for analysis. Reversing commercial software can break its licence terms, and running real malware outside an isolated VM can infect your machine."
+  },
+  "hunt": "A mobile banking app's developer says: 'Our API key is safe because it's inside the compiled APK, and nobody can read compiled code.' What's wrong?\n\nAnswer: Compiled code is fully readable with tools like jadx, apktool or strings, often in minutes. Anything shipped to a user's phone should be treated as public. Fix: remove the key from the app, have users authenticate to a server that issues short-lived, per-user tokens, and rotate the exposed key immediately.",
+  "terms": [
+    {
+      "term": "Reverse engineering",
+      "def": "Working out how software works by analysing the compiled program, without its source code.",
+      "use": "\"We reversed the sample in Ghidra and found its command-and-control domains.\""
+    },
+    {
+      "term": "Disassembler",
+      "def": "A tool that turns machine code into human-readable assembly instructions.",
+      "use": "\"The disassembler shows a jump right after the license check; that's the decision point.\""
+    },
+    {
+      "term": "Decompiler",
+      "def": "A tool that tries to rebuild C-like source code from machine code.",
+      "use": "\"Ghidra's decompiler made the encryption routine much easier to follow.\""
+    },
+    {
+      "term": "Static vs dynamic analysis",
+      "def": "Studying a program without running it vs running it in a controlled environment to watch behaviour.",
+      "use": "\"Static analysis showed networking imports, so we ran dynamic analysis in the sandbox.\""
+    },
+    {
+      "term": "Obfuscation / packing",
+      "def": "Techniques that scramble or compress code to make it harder to analyse.",
+      "use": "\"Almost no readable strings, so it's probably packed; unpack it first.\""
+    },
+    {
+      "term": "YARA rule",
+      "def": "A pattern description used to detect files that match known malware traits.",
+      "use": "\"I wrote a YARA rule from the unique strings we found while reversing.\""
+    }
+  ],
+  "quiz": [
+    {
+      "q": "What's the main difference between static and dynamic analysis?",
+      "options": [
+        "Static uses Windows, dynamic uses Linux",
+        "Static studies without running; dynamic runs it and watches",
+        "Static is illegal, dynamic is legal",
+        "There is no difference"
+      ],
+      "answer": 1,
+      "why": "Static is reading the code safely; dynamic is executing it in a controlled lab to observe behaviour."
+    },
+    {
+      "q": "Why does `strings` often reveal secrets in binaries?",
+      "options": [
+        "It decrypts all files",
+        "Hard-coded text like passwords and URLs stays readable after compiling",
+        "It connects to the developer's server",
+        "It only works on source code"
+      ],
+      "answer": 1,
+      "why": "Compiling removes comments and names but literal strings usually remain in plain text."
+    },
+    {
+      "q": "Where should you run an unknown, possibly malicious program?",
+      "options": [
+        "Your main laptop",
+        "A work server",
+        "An isolated virtual machine with no access to your real network",
+        "Your phone"
+      ],
+      "answer": 2,
+      "why": "Isolation prevents real damage if it turns out to be malware."
+    },
+    {
+      "q": "In a password-checking program, where do reversers look first?",
+      "options": [
+        "The program's icon",
+        "The comparison (e.g. strcmp) where the decision is made",
+        "The file size",
+        "The copyright notice"
+      ],
+      "answer": 1,
+      "why": "Find the decision point, then trace where its inputs come from."
+    }
+  ],
+  "talk": {
+    "scenario": "A developer on your team asks: 'Why does security care about reverse engineering? We're not making malware.'",
+    "model": "Reverse engineering is mostly a defensive skill. It's how analysts work out what malware does, how WannaCry's kill switch was found, and how we write detections like YARA rules. It's also how attackers read our shipped apps, so anything in the binary, such as API keys or hidden endpoints, should be treated as public. Doing a quick reverse of our own release build before shipping is a cheap way to catch those mistakes."
+  },
+  "reflect": "Explain to a non-technical friend, using the 'cake back to recipe' idea, what a decompiler does and why compiled apps can't keep secrets."
+}

@@ -2,7 +2,7 @@
 import json, os, sys
 D = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "content", "days")
 problems, present = [], []
-for n in range(1, 31):
+for n in range(1, 35):
     p = os.path.join(D, f"day{n:02d}.json")
     if not os.path.exists(p):
         continue
@@ -22,7 +22,7 @@ for n in range(1, 31):
             problems.append(f"day{n:02d}: quiz {i+1} answer index out of range")
     for a in d.get("attacks", []) or []:
         problems += [f"day{n:02d}: attack '{a.get('name')}' missing {k}" for k in ("analogy", "how", "thinking", "signs", "defend") if not a.get(k)]
-missing = [n for n in range(1, 31) if n not in present]
-print(f"{len(present)}/30 days present" + (f"; missing: {missing}" if missing else ""))
+missing = [n for n in range(1, 35) if n not in present]
+print(f"{len(present)}/34 days present" + (f"; missing: {missing}" if missing else ""))
 print("\n".join(problems) or "No problems found.")
 sys.exit(1 if problems else 0)

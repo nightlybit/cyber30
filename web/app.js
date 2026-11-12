@@ -34,6 +34,7 @@ const WEEKS = [
   [1, 6, "Week 1 · Foundations & mindset"], [7, 12, "Week 2 · Recon & network attacks"],
   [13, 18, "Week 3 · Network & web attacks"], [19, 24, "Week 4 · Web, exploitation & privilege escalation"],
   [25, 30, "Final stretch · The defender's view & pro practice"],
+  [31, 34, "Bonus · AI, zero-days & reverse engineering (open anytime)"],
 ];
 const PLANNED = {
   1: "The hacker mindset", 2: "Linux terminal essentials", 3: "Users, permissions & processes", 4: "Networking 101",
@@ -44,6 +45,7 @@ const PLANNED = {
   21: "API security", 22: "Exploitation & shells", 23: "Linux privilege escalation", 24: "Windows & Active Directory",
   25: "Malware & social engineering", 26: "Blue team & detection", 27: "Cloud & container security",
   28: "Zero-days & vulnerability research", 29: "Speaking & writing like a pro", 30: "Capstone & career roadmap",
+  31: "AI on both sides of the fight", 32: "When the AI is the target", 33: "Zero-days in the AI era", 34: "Reverse engineering",
 };
 // Days without an in-app lesson: study them with free, legal outside training instead.
 const EXTERNAL = {
@@ -123,16 +125,34 @@ const save = () => lsSet("c30state", JSON.stringify(S));
 const kv = (k, d = "") => (S.kv[k] && S.kv[k].value != null && S.kv[k].value !== "" ? S.kv[k].value : d);
 function put(table, rec) {
   rec.updated = nowS(); S[table][rec[PK[table]]] = rec;
-  if (table !== "kv" && table !== "activity") { const d = today(); if (!S.activity[d]) S.activity[d] = { date: d, updated: nowS() }; }
+  if (table !== "kv" && table !== "activity") { const d = today(); if (!S.activity[d]) S.activity[d] = { date: d, updated: nowS() }; NATIVE && NATIVE.markActive(d); }
   save(); queueSync(); renderStats();
 }
 const setKV = (key, value) => put("kv", { key, value });
 
 let needKey = false, syncT;
 const queueSync = () => { clearTimeout(syncT); syncT = setTimeout(sync, 700); };
+// Android app: lessons are bundled; network calls go through the native bridge to the Kali server.
+const NATIVE = window.Cyber30Native || null;
+const NATIVE_CFG = (() => { try { return NATIVE ? JSON.parse(NATIVE.config()) : {}; } catch { return {}; } })();
+if (NATIVE) {
+  if (!lsGet("c30key") && NATIVE_CFG.key) lsSet("c30key", NATIVE_CFG.key);
+  if (!lsGet("c30server") && NATIVE_CFG.server) lsSet("c30server", NATIVE_CFG.server);
+}
+const nativeCalls = {};
+window.__c30cb = (id, status, text) => { const f = nativeCalls[id]; delete nativeCalls[id]; if (f) f(status, text); };
+function nativeFetch(path, opts) {
+  return new Promise((resolve) => {
+    const id = Math.random().toString(36).slice(2);
+    nativeCalls[id] = (status, text) => resolve({ status, ok: status >= 200 && status < 300, json: async () => JSON.parse(text) });
+    NATIVE.http(id, opts.method || "GET", (lsGet("c30server") || "").replace(/\/+$/, "") + path, lsGet("c30key") || "", opts.body || "");
+  });
+}
 async function api(path, opts = {}) {
   const key = lsGet("c30key");
-  const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...(key ? { "X-Key": key } : {}) } });
+  const r = NATIVE ? await nativeFetch(path, opts)
+    : await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...(key ? { "X-Key": key } : {}) } });
+  if (r.status === 0) throw new Error("Can't reach your Kali machine");
   if (r.status === 401) { needKey = true; throw new Error("Access key needed"); }
   if (!r.ok) throw new Error("HTTP " + r.status);
   needKey = false; return r.json();
@@ -158,7 +178,7 @@ async function sync() {
 // ------------------------------------------------------------ lessons
 const DAYS = {};
 async function loadDays() {
-  await Promise.all(Array.from({ length: 30 }, (_, i) => i + 1).map(async (n) => {
+  await Promise.all(Array.from({ length: 34 }, (_, i) => i + 1).map(async (n) => {
     try { const r = await fetch(`/content/days/day${pad(n)}.json`); if (r.ok) DAYS[n] = await r.json(); } catch {}
   }));
 }
@@ -183,7 +203,7 @@ function calendarDay() {
   const diff = Math.round((new Date(today() + "T12:00:00") - new Date(st + "T12:00:00")) / 86400000);
   return Math.max(1, Math.min(30, diff + 1));
 }
-const unlocked = (n) => n === 1 || dayComplete(n - 1) || n <= calendarDay();
+const unlocked = (n) => n === 1 || n > 30 || dayComplete(n - 1) || n <= calendarDay();
 const focusDay = () => { for (let n = 1; n <= 30; n++) if (!dayComplete(n)) return n; return 30; };
 function xp() {
   let x = 0;
@@ -477,7 +497,8 @@ async function vMe() {
       <p class="small muted">In the ntfy app tap + and subscribe to the same topic. Use a long random name — anyone who knows it can read the reminders.</p>
       <div class="row"><button class="btn" data-act="saveNotify">Save</button><button class="btn ghost" data-act="testNotify">Send test</button></div></div>
     <div class="card" id="connectCard"><h3>Your devices</h3>${isLocal ? `<p class="small muted">Loading phone link…</p>` : `
-      <p class="small muted">This device syncs with your Kali machine using an access key.</p>
+      <p class="small muted">This device syncs with your Kali machine using an access key${NATIVE ? " when it's on the same Wi-Fi. Everything works offline in the meantime" : ""}.</p>
+      ${NATIVE ? `<label for="asrv">Kali server address</label><div class="row" style="flex-wrap:nowrap"><input id="asrv" value="${esc(lsGet("c30server") || "")}" placeholder="http://192.168.1.10:8730" autocomplete="off" inputmode="url"></div>` : ""}
       <label for="akey">Access key</label><div class="row" style="flex-wrap:nowrap"><input id="akey" value="${esc(lsGet("c30key") || "")}" autocomplete="off"><button class="btn ghost" data-act="saveKey">Save</button></div>`}</div>
     <div class="card"><h3>Appearance & data</h3>
       <label for="theme">Theme</label><select id="theme"><option value="">Match system</option><option value="dark">Dark</option><option value="light">Light</option></select>
@@ -563,9 +584,12 @@ const ACT = {
     if (topic && !/^[A-Za-z0-9_-]{6,64}$/.test(topic)) return toast("Topic: 6–64 letters, numbers, - or _");
     setKV("notify_enabled", $("#nen").checked ? "1" : "0"); setKV("notify_time", $("#nt").value || "08:00");
     setKV("nudge_time", $("#nn").value || "20:00"); setKV("ntfy_topic", topic); toast("Reminder settings saved");
+    if (NATIVE) { NATIVE.requestNotifications(); NATIVE.setReminders(kv("notify_time", "08:00"), kv("nudge_time", "20:00"), kv("notify_enabled", "1") === "1"); }
   },
-  async testNotify() { await sync(); try { await api("/api/test-notify", { method: "POST", body: "{}" }); toast("Test sent — check your desktop and phone"); } catch (e) { toast("Couldn't reach the server: " + e.message); } },
-  async saveKey() { lsSet("c30key", $("#akey").value.trim()); const ok = await sync(); toast(needKey ? "That key didn't work" : "Connected ✓"); if (ok) route(); },
+  async testNotify() { if (NATIVE) { NATIVE.requestNotifications(); NATIVE.testNotification(); } await sync(); try { await api("/api/test-notify", { method: "POST", body: "{}" }); toast("Test sent — check your desktop and phone"); } catch (e) { toast("Couldn't reach the server: " + e.message); } },
+  async saveKey() {
+    if ($("#asrv")) { const s = $("#asrv").value.trim(); if (s && !/^https?:\/\/[\w.-]+(:\d+)?\/?$/.test(s)) return toast("Address looks like http://192.168.1.10:8730"); lsSet("c30server", s); }
+    lsSet("c30key", $("#akey").value.trim()); const ok = await sync(); toast(needKey ? "That key didn't work" : "Connected ✓"); if (ok) route(); },
   extDone(el) {
     const n = +el.dataset.day;
     if (!dayComplete(n)) { put("progress", { id: `${n}:complete`, day: n, done: 1 }); toast(`Day ${n} marked as studied ✓`); }
@@ -590,11 +614,12 @@ setInterval(() => {
   applyTheme();
   const k = new URLSearchParams(location.search).get("k");
   if (k) { lsSet("c30key", k); history.replaceState(null, "", location.pathname + (location.hash || "#/today")); }
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if (!NATIVE && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   window.addEventListener("hashchange", route);
   view().innerHTML = `<div class="empty">Loading your lessons…</div>`;
   await Promise.all([loadDays(), sync()]);
   route();
+  if (NATIVE) { NATIVE.requestNotifications(); NATIVE.setReminders(kv("notify_time", "08:00"), kv("nudge_time", "20:00"), kv("notify_enabled", "1") === "1"); }
   setInterval(async () => { if (await sync() && !location.hash.startsWith("#/day/")) route(); }, 60 * 1000);
   document.addEventListener("visibilitychange", async () => { if (!document.hidden && await sync() && !location.hash.startsWith("#/day/")) route(); });
 })();

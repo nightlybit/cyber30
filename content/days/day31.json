@@ -1,0 +1,52 @@
+{
+  "day": 31,
+  "week": 6,
+  "title": "AI on Both Sides of the Fight",
+  "theme": "Bonus · AI & Security",
+  "minutes": 35,
+  "mindset": "AI doesn't invent new crimes; it makes old ones faster, cheaper and more convincing, so defenders must verify, not just recognise.",
+  "cards": [
+    { "title": "What changed with AI", "body": "Before AI, a convincing scam email took effort: good grammar, local details, a believable tone. Now a chatbot writes a perfect one in seconds, in any language, tailored to you. AI is a **force multiplier**: like giving every burglar a master locksmith's apprentice. The attacks are mostly the familiar ones (phishing, fraud, recon). What changed is **speed, scale and polish**." },
+    { "title": "Phishing without the typos", "body": "We used to teach 'look for spelling mistakes'. That advice is now outdated. AI-written phishing is fluent, uses your company's style, and can reference real projects scraped from LinkedIn. The new rule: judge a message by **what it asks you to do** (pay, log in, share, hurry), not how it looks. Urgent requests for money or credentials get verified through a **second, known channel**." },
+    { "title": "Deepfakes: seeing is no longer believing", "body": "AI can clone a voice from a short clip and fake a face on a video call. Criminals use this for **CEO fraud**: 'It's the boss, I need an urgent transfer.' The defence isn't spotting glitches; fakes keep improving. It's **process**: call-back on a known number, a shared code word for urgent money requests, and two-person approval for payments." },
+    { "title": "How defenders use AI", "body": "Security teams drown in alerts. AI helps by **summarising** logs, **triaging** alerts (which ones look like real attacks?), explaining malware behaviour, and drafting incident reports. Google, Microsoft and others build AI into security tools. The golden rule: AI is an **assistant, not an authority**. It can be wrong confidently, so analysts verify before acting." },
+    { "title": "The defender's mindset shift", "body": "When anything can be faked (text, voice, video, a login page), trust must come from **verification**, not appearance. That means MFA that resists phishing (passkeys/security keys), out-of-band confirmation for money and access requests, and logging so you can investigate later. Ask yourself: 'If this message were AI-generated, what would stop me acting on it?'" }
+  ],
+  "attacks": [
+    {
+      "name": "Deepfake-enabled payment fraud",
+      "analogy": "A con artist who can borrow your boss's face and voice for a phone call.",
+      "how": ["Attacker gathers public video/audio of an executive (talks, interviews).", "They create a convincing voice or video imitation with AI tools.", "They contact finance staff with an urgent, secret request to move money.", "Pressure and authority push the employee to skip normal checks."],
+      "thinking": "\"People trust faces and voices they recognise, and they rarely question the boss under time pressure.\"",
+      "signs": "Unusual urgency or secrecy, new bank details, requests outside normal process, refusal to allow a call-back, odd timing.",
+      "defend": "Mandatory call-back on a known number, two-person approval for payments, code words for urgent requests, staff training that 'the boss' can be faked."
+    }
+  ],
+  "story": { "title": "Arup deepfake video call (2024)", "body": "In early 2024, a finance employee at the engineering firm Arup in Hong Kong joined a video call with what appeared to be the company's CFO and several colleagues. All of them were AI-generated deepfakes. Convinced, the employee made a series of transfers totalling about **US$25 million**. Lesson: when faces and voices can be faked, payment safety must come from **process** (independent verification and multi-person approval), not from recognising people." },
+  "lab": {
+    "title": "Build your personal 'verify, don't trust' checklist",
+    "goal": "Practise judging messages by what they ask, and set up phishing-resistant sign-in on your own accounts.",
+    "steps": ["Open your email spam folder and pick 3 suspicious messages (don't click links).", "For each, write: what does it want me to DO? What's the pressure trick (urgency, authority, fear, reward)?", "Check the real sender address in the full headers.", "Turn on a passkey or authenticator-app MFA for your most important account (email first).", "Agree a family/team code word for urgent money requests."],
+    "commands": [
+      { "cmd": "mkdir -p ~/cyber30-notes && nano ~/cyber30-notes/verify-checklist.md", "explain": "Creates a notes folder and opens a simple text editor so you can write your checklist. Save with Ctrl+O, exit with Ctrl+X." },
+      { "cmd": "grep -iE '^(from|reply-to|return-path):' suspicious.eml", "explain": "If you save a suspicious email as `suspicious.eml`, this shows the real sender lines. A Reply-To that differs from From is a classic red flag." }
+    ],
+    "safety": "Never click links or open attachments in suspicious emails while analysing them. Use only your own mailbox. Creating deepfakes of real people without consent can be illegal; this lab is about defence only."
+  },
+  "hunt": "Your finance colleague gets a WhatsApp voice note from 'the CEO': perfectly his voice, asking to pay a supplier's new bank account today 'before the deal falls through. Keep it quiet until it's announced.' What's wrong?\n\nAnswer: Every classic fraud signal is there: urgency, secrecy, changed bank details, and an unusual channel. The voice being convincing proves nothing in the AI era. The fix is process: call the CEO back on a known number, require a second approver, and verify new bank details with the supplier through contact details already on file.",
+  "terms": [
+    { "term": "Deepfake", "def": "AI-generated fake audio, image or video that imitates a real person.", "use": "\"Treat voice approvals as untrusted; deepfakes make them trivially spoofable.\"" },
+    { "term": "BEC (business email compromise)", "def": "Fraud where attackers impersonate executives or suppliers to trick staff into paying or sharing data.", "use": "\"It's classic BEC, just with an AI-cloned voice instead of an email.\"" },
+    { "term": "Out-of-band verification", "def": "Confirming a request through a different, already-trusted channel (e.g. calling a known number).", "use": "\"Any change of bank details needs out-of-band verification before payment.\"" },
+    { "term": "Phishing-resistant MFA", "def": "Sign-in methods like passkeys or security keys that can't be tricked into working on a fake site.", "use": "\"Move admins to phishing-resistant MFA; codes by SMS can be phished.\"" },
+    { "term": "Social engineering", "def": "Manipulating people, not computers, into breaking security.", "use": "\"AI hasn't changed social engineering's playbook, just made it cheaper to run at scale.\"" }
+  ],
+  "quiz": [
+    { "q": "Why is 'look for spelling mistakes' weak advice today?", "options": ["Spam filters remove all typos", "AI writes fluent, polished phishing", "Phishing no longer exists", "Emails are now encrypted"], "answer": 1, "why": "AI produces natural, error-free text, so judge messages by what they ask you to do instead." },
+    { "q": "Best defence against a deepfake 'CEO' asking for an urgent transfer?", "options": ["Look for visual glitches", "Ask a trick question on the call", "Call back on a known number and require a second approver", "Reply by email"], "answer": 2, "why": "Process beats perception: independent verification and multi-person approval don't depend on spotting a fake." },
+    { "q": "How should a security analyst treat an AI tool's alert summary?", "options": ["As final truth", "As a helpful lead to verify", "Ignore it always", "Forward it to the CEO"], "answer": 1, "why": "AI can be confidently wrong; use it to go faster, then verify with evidence." },
+    { "q": "Which MFA is most resistant to AI-powered phishing pages?", "options": ["SMS codes", "Security questions", "Passkeys / hardware security keys", "Email codes"], "answer": 2, "why": "Passkeys are bound to the real website, so a fake login page can't use them." }
+  ],
+  "talk": { "scenario": "A colleague says: 'AI hacking is just hype, nothing has really changed.' How do you respond?", "model": "Partly true: the core attacks such as phishing, BEC and credential theft are the same. What changed is scale and quality. AI removes the tell-tale typos and makes deepfake voice and video cheap, as the Arup case showed with a fake video call. So our controls should shift from 'spot the fake' to verification: out-of-band confirmation, two-person payment approval and phishing-resistant MFA." },
+  "reflect": "Think of one situation in your own life where you trust a voice or face without checking. How could AI exploit it, and what simple verification habit would protect you?"
+}
