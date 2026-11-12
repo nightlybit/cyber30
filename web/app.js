@@ -289,10 +289,10 @@ function renderStats() { $("#streakChip").textContent = "🔥 " + streak(); $("#
 
 // ------------------------------------------------------------ views
 const view = () => $("#view");
-const routes = { today: vToday, path: vPath, day: vDay, done: vDone, cards: vCards, glossary: vGlossary, threats: vThreats, me: vMe, journal: vJournal };
+const routes = { today: vToday, path: vPath, day: vDay, done: vDone, cards: vCards, glossary: vGlossary, threats: vThreats, me: vMe, journal: vJournal, feedback: vFeedback };
 function route() {
   const [name, ...args] = (location.hash.replace(/^#\/?/, "") || "today").split("/");
-  document.querySelectorAll(".tabs a").forEach((a) => a.classList.toggle("active", a.dataset.tab === (name === "day" || name === "done" ? "path" : name === "glossary" ? "cards" : name === "journal" ? "me" : name)));
+  document.querySelectorAll(".tabs a").forEach((a) => a.classList.toggle("active", a.dataset.tab === (name === "day" || name === "done" ? "path" : name === "glossary" ? "cards" : (name === "journal" || name === "feedback") ? "me" : name)));
   (routes[name] || vToday)(...args);
   renderStats();
   window.scrollTo(0, 0);
@@ -472,7 +472,8 @@ function vDone(nStr) {
     </div>
     <div class="card"><div class="eyebrow">Coming up</div><h3>Day ${n + 1}: ${esc(next ? next.title : PLANNED[n + 1] || "You finished!")}</h3>
       <p class="muted small">Best practice: stop here and let it sink in. Sleep helps your brain store what you learned. Review your flashcards tomorrow.</p>
-      <div class="row"><a class="btn" href="#/cards">Review flashcards</a><a class="btn ghost" href="#/path">Back to path</a></div></div>`;
+      <div class="row"><a class="btn" href="#/cards">Review flashcards</a><a class="btn ghost" href="#/path">Back to path</a></div></div>
+    ${CLOUD ? `<div class="card"><div class="row spread"><span><b>How was Day ${n}?</b><br><span class="small muted">Your feedback shapes the next version.</span></span><a class="btn ghost" href="#/feedback/${n}">Rate it</a></div></div>` : ""}`;
   confetti();
 }
 
@@ -557,6 +558,7 @@ async function vMe() {
     <div class="grid2" style="margin-bottom:14px">
       <div class="stat"><b>${completed}/30</b>days done</div><div class="stat"><b>🔥 ${streak()}</b>day streak</div>
       <div class="stat"><b>${qavg}%</b>quiz average</div><div class="stat"><b>${Object.keys(S.flash).length}</b>terms learned</div></div>
+    ${CLOUD ? `<div class="card"><div class="row spread"><span><h3 style="margin:0">Send feedback</h3><span class="small muted">Bugs, ideas, confusing lessons — tell us.</span></span><a class="btn" href="#/feedback">Write</a></div></div>` : ""}
     <div class="card"><div class="row spread"><h3>Journal</h3><a href="#/journal">Open →</a></div><p class="small muted">${Object.keys(S.journal).length} reflections written.</p></div>
     <div class="card"><h3>Reminders</h3>
       <label class="row" style="font-weight:500"><input type="checkbox" id="nen" style="width:auto" ${kv("notify_enabled", "1") === "1" ? "checked" : ""}> Daily reminders on</label>
@@ -609,6 +611,45 @@ function vJournal() {
   view().innerHTML = `<div class="row spread"><h1>Journal</h1><a class="btn ghost" href="#/me">Back</a></div>
     <p class="muted small">Re-reading your own words is one of the best ways to see how your thinking has changed.</p>` +
     (entries.map((j) => `<div class="card"><div class="eyebrow">Day ${j.day} · ${esc(DAYS[j.day] ? DAYS[j.day].title : "")}</div><p class="small muted">${md(DAYS[j.day] ? DAYS[j.day].reflect : "")}</p><p>${md(j.text)}</p></div>`).join("") || `<div class="empty">No reflections yet. They appear at the end of each day.</div>`);
+}
+const APP_VERSION = "1.1";
+let fbRating = 0;
+function vFeedback(dayStr) {
+  const day = +dayStr || 0, draft = lsJSON("c30fbdraft") || {};
+  fbRating = draft.rating || 0;
+  const opts = [`<option value="">Not about a specific day</option>`].concat(Array.from({ length: 34 }, (_, i) => i + 1)
+    .map((n) => `<option value="${n}" ${n === (day || draft.day) ? "selected" : ""}>Day ${n}: ${esc(DAYS[n] ? DAYS[n].title : PLANNED[n] || "")}</option>`));
+  view().innerHTML = `<div class="row spread"><h1>Send feedback</h1><a class="btn ghost" href="#/me">Back</a></div>
+    <p class="muted small">Goes straight to the Cyber30 team. Only the team can read it.</p>
+    ${!auth ? `<div class="card"><b>Sign in first</b><p class="small muted">Feedback is linked to your account so we can follow up and keep out spam.</p><a class="btn" href="#/me">Sign in with Google</a></div>` : `
+    <div class="card">
+      <label for="fbk">What kind?</label>
+      <select id="fbk">${[["general", "General"], ["bug", "Something's broken"], ["idea", "Idea / feature request"], ["content", "A lesson was confusing or wrong"]]
+        .map(([v, t]) => `<option value="${v}" ${draft.kind === v ? "selected" : ""}>${t}</option>`).join("")}</select>
+      <label for="fbd">Which lesson?</label><select id="fbd">${opts.join("")}</select>
+      <label>Rating</label><div class="row" id="stars" role="radiogroup" aria-label="Rating">${[1, 2, 3, 4, 5].map((r) => `<button class="btn ghost" data-act="rate" data-r="${r}" role="radio" aria-checked="${r === fbRating}" aria-label="${r} star${r > 1 ? "s" : ""}" style="font-size:1.2rem;padding:6px 12px;color:${r <= fbRating ? "var(--warn)" : "var(--line)"}">★</button>`).join("")}</div>
+      <label for="fbm">Your message</label>
+      <textarea id="fbm" maxlength="2000" placeholder="What worked? What didn't? What should we add?">${esc(draft.message || "")}</textarea>
+      <p class="small muted"><span id="fbc">0</span>/2000 · Please don't include passwords or private info.</p>
+      <button class="btn block" data-act="sendFeedback">Send feedback</button>
+    </div>`}`;
+  const m = $("#fbm");
+  if (m) {
+    const upd = () => { $("#fbc").textContent = m.value.length; lsSet("c30fbdraft", JSON.stringify({ kind: $("#fbk").value, day: +$("#fbd").value || 0, rating: fbRating, message: m.value })); };
+    m.addEventListener("input", upd); $("#fbk").addEventListener("change", upd); $("#fbd").addEventListener("change", upd); upd();
+  }
+}
+async function sendFeedback() {
+  const message = $("#fbm").value.trim();
+  if (message.length < 3) return toast("Write a few words first");
+  const t = await token();
+  if (!t) return toast("Please sign in again on the Me tab");
+  const body = { kind: $("#fbk").value, day: +$("#fbd").value || null, rating: fbRating || null, message, platform: NATIVE ? "android" : "web", app_version: APP_VERSION };
+  try {
+    const r = await fetch(`${CLOUD.url}/rest/v1/feedback`, { method: "POST", headers: { apikey: CLOUD.key, Authorization: "Bearer " + t, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(body) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.message || `Couldn't send (${r.status})`); }
+    lsDel("c30fbdraft"); toast("Thank you! Feedback sent 🙏", 3500); location.hash = "#/me";
+  } catch (e) { toast((navigator.onLine === false ? "You're offline — your draft is saved. " : "") + e.message, 5000); }
 }
 function exportBackup() {
   const blob = new Blob([JSON.stringify(S, null, 1)], { type: "application/json" });
@@ -667,6 +708,12 @@ const ACT = {
   async saveKey() {
     lsSet("c30key", $("#akey").value.trim()); const ok = await sync(); toast(needKey ? "That key didn't work" : "Connected ✓"); if (ok) route(); },
   google() { googleSignIn(); },
+  rate(el) {
+    fbRating = +el.dataset.r;
+    document.querySelectorAll("#stars [data-r]").forEach((b) => { const r = +b.dataset.r; b.style.color = r <= fbRating ? "var(--warn)" : "var(--line)"; b.setAttribute("aria-checked", r === fbRating); });
+    $("#fbm").dispatchEvent(new Event("input"));
+  },
+  sendFeedback() { sendFeedback(); },
   signOut() { signOut(); toast("Signed out. Progress stays on this device."); route(); },
   async syncNow() { await sync(); toast(lastErr || $("#syncDot").title); route(); },
   extDone(el) {
