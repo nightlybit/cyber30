@@ -130,49 +130,89 @@ function put(table, rec) {
 }
 const setKV = (key, value) => put("kv", { key, value });
 
-let needKey = false, syncT;
+let needKey = false, syncT, lastErr = "";
 const queueSync = () => { clearTimeout(syncT); syncT = setTimeout(sync, 700); };
-// Android app: lessons are bundled; network calls go through the native bridge to the Kali server.
+const lsDel = (k) => { try { localStorage.removeItem(k); } catch {} };
+
+// Android app: lessons are bundled in the APK; outside requests go through the native bridge.
 const NATIVE = window.Cyber30Native || null;
-const NATIVE_CFG = (() => { try { return NATIVE ? JSON.parse(NATIVE.config()) : {}; } catch { return {}; } })();
-if (NATIVE) {
-  if (!lsGet("c30key") && NATIVE_CFG.key) lsSet("c30key", NATIVE_CFG.key);
-  if (!lsGet("c30server") && NATIVE_CFG.server) lsSet("c30server", NATIVE_CFG.server);
-}
 const nativeCalls = {};
 window.__c30cb = (id, status, text) => { const f = nativeCalls[id]; delete nativeCalls[id]; if (f) f(status, text); };
-function nativeFetch(path, opts) {
+function nativeFetch(url, opts = {}) {
   return new Promise((resolve) => {
     const id = Math.random().toString(36).slice(2);
     nativeCalls[id] = (status, text) => resolve({ status, ok: status >= 200 && status < 300, json: async () => JSON.parse(text) });
-    NATIVE.http(id, opts.method || "GET", (lsGet("c30server") || "").replace(/\/+$/, "") + path, lsGet("c30key") || "", opts.body || "");
+    NATIVE.http(id, opts.method || "GET", url, "", opts.body || "");
   });
 }
+
+// The Kali machine's own server: desktop app, live threats, desktop reminders (not used by the APK).
 async function api(path, opts = {}) {
+  if (NATIVE) throw new Error("Not available in the Android app");
   const key = lsGet("c30key");
-  const r = NATIVE ? await nativeFetch(path, opts)
-    : await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...(key ? { "X-Key": key } : {}) } });
-  if (r.status === 0) throw new Error("Can't reach your Kali machine");
+  const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...(key ? { "X-Key": key } : {}) } });
   if (r.status === 401) { needKey = true; throw new Error("Access key needed"); }
   if (!r.ok) throw new Error("HTTP " + r.status);
   needKey = false; return r.json();
 }
+
+// ---- cloud sync (Supabase). URL + publishable key come from web/config.js; your data is protected by sign-in + row-level security.
+const CLOUD = window.CYBER30_CLOUD && window.CYBER30_CLOUD.url && window.CYBER30_CLOUD.key ? window.CYBER30_CLOUD : null;
+let auth = lsJSON("c30auth");
+async function authCall(path, body) {
+  const r = await fetch(`${CLOUD.url}/auth/v1/${path}`, { method: "POST", headers: { apikey: CLOUD.key, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.msg || j.error_description || j.message || `Sign-in failed (${r.status})`);
+  return j;
+}
+function saveAuth(j) {
+  auth = { access: j.access_token, refresh: j.refresh_token, exp: j.expires_at || nowS() + (j.expires_in || 3600), email: (j.user && j.user.email) || (auth && auth.email) };
+  lsSet("c30auth", JSON.stringify(auth));
+}
+function signOut() { auth = null; lsDel("c30auth"); }
+async function token() {
+  if (!auth) return null;
+  if (auth.exp - nowS() < 90) {
+    try { saveAuth(await authCall("token?grant_type=refresh_token", { refresh_token: auth.refresh })); }
+    catch (e) { if (navigator.onLine !== false && /invalid|not found|revoked|expired/i.test(e.message)) signOut(); return null; }
+  }
+  return auth.access;
+}
+async function cloudSync() {
+  if (!CLOUD) return null;
+  const t = await token(); if (!t) return null;
+  const items = [];
+  for (const tb in PK) for (const rec of Object.values(S[tb])) items.push({ tbl: tb, pk: String(rec[PK[tb]]), data: rec, updated: rec.updated || 0 });
+  const r = await fetch(`${CLOUD.url}/rest/v1/rpc/sync`, { method: "POST", headers: { apikey: CLOUD.key, Authorization: "Bearer " + t, "Content-Type": "application/json" }, body: JSON.stringify({ items }) });
+  if (!r.ok) throw new Error(`Cloud sync failed (${r.status})`);
+  const out = {}; for (const tb in PK) out[tb] = [];
+  for (const row of await r.json()) if (out[row.tbl]) out[row.tbl].push({ ...row.data, updated: row.updated });
+  return out;
+}
+function mergeIn(srv) {
+  let changed = false;
+  for (const t in PK) for (const rec of (srv && srv[t]) || []) {
+    const k = rec[PK[t]], cur = S[t][k];
+    if (k != null && (!cur || rec.updated > (cur.updated || 0))) { S[t][k] = rec; changed = true; }
+  }
+  return changed;
+}
+const stateBody = () => { const b = {}; for (const t in PK) b[t] = Object.values(S[t]); return JSON.stringify(b); };
 async function sync() {
   const dot = $("#syncDot");
+  let changed = false, localOk = false, cloudOk = false;
+  lastErr = "";
+  if (!NATIVE) { try { changed = mergeIn(await api("/api/sync", { method: "POST", body: stateBody() })) || changed; localOk = true; } catch {} }
   try {
-    const body = {}; for (const t in PK) body[t] = Object.values(S[t]);
-    const srv = await api("/api/sync", { method: "POST", body: JSON.stringify(body) });
-    let changed = false;
-    for (const t in PK) for (const rec of srv[t] || []) {
-      const k = rec[PK[t]], cur = S[t][k];
-      if (!cur || rec.updated > (cur.updated || 0)) { S[t][k] = rec; changed = true; }
-    }
-    save(); dot.className = "sync-dot ok"; dot.title = "Synced with your Kali machine";
-    return changed;
-  } catch (e) {
-    dot.className = "sync-dot off"; dot.title = needKey ? "Access key needed — see Me tab" : "Offline — progress saved on this device";
-    return false;
-  }
+    const c = await cloudSync();
+    if (c) { changed = mergeIn(c) || changed; cloudOk = true; if (localOk) api("/api/sync", { method: "POST", body: stateBody() }).catch(() => {}); }
+  } catch (e) { lastErr = e.message; }
+  save();
+  const ok = cloudOk || (localOk && !(CLOUD && auth));
+  dot.className = "sync-dot " + (ok ? "ok" : "off");
+  dot.title = cloudOk ? `Synced to the cloud as ${auth.email}` : localOk ? (CLOUD ? "Saved on your Kali machine — sign in (Me tab) to sync everywhere" : "Synced with your Kali machine")
+    : CLOUD && !auth ? "Sign in on the Me tab to sync" : "Offline — progress saved on this device";
+  return changed;
 }
 
 // ------------------------------------------------------------ lessons
@@ -267,7 +307,8 @@ function vToday() {
   const allDone = dayComplete(30);
   const pace = n > cal ? `You're ahead of schedule (calendar day ${cal}). Nice.` : n < cal ? `Calendar says day ${cal} — no stress, consistency beats speed.` : "Right on schedule.";
   view().innerHTML = `
-    ${needKey ? `<div class="card"><b>Connect to your Kali machine</b><p class="small muted">Sync is paused. Add your access key on the Me tab.</p><a class="btn ghost" href="#/me">Open Me tab</a></div>` : ""}
+    ${CLOUD && !auth ? `<div class="card"><b>Sync your PC and phone</b><p class="small muted">Sign in on the Me tab to keep progress in sync anywhere.</p><a class="btn ghost" href="#/me">Sign in</a></div>` : ""}
+    ${needKey && !CLOUD ? `<div class="card"><b>Connect to your Kali machine</b><p class="small muted">Sync is paused. Add your access key on the Me tab.</p><a class="btn ghost" href="#/me">Open Me tab</a></div>` : ""}
     <div class="card hero">
       <div class="eyebrow">${allDone ? "Course complete" : `Day ${n} of 30 · ${esc(d ? d.theme : "")}`}</div>
       <h1>${allDone ? "You did all 30 days. 🛡️" : esc(d ? d.title : PLANNED[n])}</h1>
@@ -450,7 +491,15 @@ function vGlossary() {
 let threatCache = null;
 async function loadThreats() {
   if (threatCache) return threatCache;
-  try { threatCache = await api("/api/threats?limit=40"); lsSet("c30threats", JSON.stringify(threatCache)); }
+  try {
+    if (NATIVE) { // the phone fetches CISA's feed itself, so threats work away from home too
+      const r = await nativeFetch("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json");
+      if (!r.ok) throw new Error("offline");
+      const data = await r.json(), v = (data.vulnerabilities || []).sort((a, b) => (b.dateAdded || "").localeCompare(a.dateAdded || ""));
+      threatCache = { updated: data.dateReleased, count: v.length, items: v.slice(0, 40) };
+    } else threatCache = await api("/api/threats?limit=40");
+    lsSet("c30threats", JSON.stringify(threatCache));
+  }
   catch { threatCache = lsJSON("c30threats"); }
   return threatCache;
 }
@@ -496,10 +545,18 @@ async function vMe() {
       <div class="row" style="flex-wrap:nowrap"><input id="ntfy" value="${esc(kv("ntfy_topic"))}" placeholder="e.g. cyber30-x7k2m9q4" autocomplete="off"><button class="btn ghost" data-act="genTopic">New</button></div>
       <p class="small muted">In the ntfy app tap + and subscribe to the same topic. Use a long random name — anyone who knows it can read the reminders.</p>
       <div class="row"><button class="btn" data-act="saveNotify">Save</button><button class="btn ghost" data-act="testNotify">Send test</button></div></div>
-    <div class="card" id="connectCard"><h3>Your devices</h3>${isLocal ? `<p class="small muted">Loading phone link…</p>` : `
-      <p class="small muted">This device syncs with your Kali machine using an access key${NATIVE ? " when it's on the same Wi-Fi. Everything works offline in the meantime" : ""}.</p>
-      ${NATIVE ? `<label for="asrv">Kali server address</label><div class="row" style="flex-wrap:nowrap"><input id="asrv" value="${esc(lsGet("c30server") || "")}" placeholder="http://192.168.1.10:8730" autocomplete="off" inputmode="url"></div>` : ""}
-      <label for="akey">Access key</label><div class="row" style="flex-wrap:nowrap"><input id="akey" value="${esc(lsGet("c30key") || "")}" autocomplete="off"><button class="btn ghost" data-act="saveKey">Save</button></div>`}</div>
+    ${CLOUD ? `<div class="card" id="cloudCard"><h3>Cloud sync</h3>${auth ? `
+      <p class="small">Signed in as <b>${esc(auth.email)}</b>. Your progress syncs across your PC and phone wherever you are.</p>
+      <p class="small muted">${esc(lastErr || $("#syncDot").title)}</p>
+      <div class="row"><button class="btn ghost" data-act="syncNow">Sync now</button><button class="btn ghost" data-act="signOut">Sign out</button></div>` : `
+      <p class="small muted">Sign in with the same account on your PC and phone to keep them in sync from anywhere.</p>
+      <label for="cem">Email</label><input id="cem" type="email" autocomplete="username" inputmode="email">
+      <label for="cpw">Password</label><input id="cpw" type="password" autocomplete="current-password" minlength="8">
+      <div class="row" style="margin-top:12px"><button class="btn" data-act="signIn">Sign in</button><button class="btn ghost" data-act="signUp">Create account</button></div>
+      <p class="small muted">New here? Tap <b>Create account</b>, confirm the email Supabase sends you, then sign in. Use 12+ characters.</p>`}</div>` : ""}
+    ${NATIVE ? "" : `<div class="card" id="connectCard"><h3>Your devices</h3>${isLocal ? `<p class="small muted">Loading phone link…</p>` : `
+      <p class="small muted">This browser syncs with your Kali machine using an access key.</p>
+      <label for="akey">Access key</label><div class="row" style="flex-wrap:nowrap"><input id="akey" value="${esc(lsGet("c30key") || "")}" autocomplete="off"><button class="btn ghost" data-act="saveKey">Save</button></div>`}</div>`}
     <div class="card"><h3>Appearance & data</h3>
       <label for="theme">Theme</label><select id="theme"><option value="">Match system</option><option value="dark">Dark</option><option value="light">Light</option></select>
       <div class="row" style="margin-top:12px"><button class="btn ghost" data-act="export">Export backup</button><label class="btn ghost" style="margin:0">Import<input type="file" id="imp" accept="application/json" hidden></label></div>
@@ -586,10 +643,27 @@ const ACT = {
     setKV("nudge_time", $("#nn").value || "20:00"); setKV("ntfy_topic", topic); toast("Reminder settings saved");
     if (NATIVE) { NATIVE.requestNotifications(); NATIVE.setReminders(kv("notify_time", "08:00"), kv("nudge_time", "20:00"), kv("notify_enabled", "1") === "1"); }
   },
-  async testNotify() { if (NATIVE) { NATIVE.requestNotifications(); NATIVE.testNotification(); } await sync(); try { await api("/api/test-notify", { method: "POST", body: "{}" }); toast("Test sent — check your desktop and phone"); } catch (e) { toast("Couldn't reach the server: " + e.message); } },
+  async testNotify() { if (NATIVE) { NATIVE.requestNotifications(); NATIVE.testNotification(); return toast("Test notification sent"); } await sync(); try { await api("/api/test-notify", { method: "POST", body: "{}" }); toast("Test sent — check your desktop and phone"); } catch (e) { toast("Couldn't reach the server: " + e.message); } },
   async saveKey() {
-    if ($("#asrv")) { const s = $("#asrv").value.trim(); if (s && !/^https?:\/\/[\w.-]+(:\d+)?\/?$/.test(s)) return toast("Address looks like http://192.168.1.10:8730"); lsSet("c30server", s); }
     lsSet("c30key", $("#akey").value.trim()); const ok = await sync(); toast(needKey ? "That key didn't work" : "Connected ✓"); if (ok) route(); },
+  async signIn() {
+    const email = $("#cem").value.trim(), password = $("#cpw").value;
+    if (!email || !password) return toast("Enter your email and password");
+    try { saveAuth(await authCall("token?grant_type=password", { email, password })); await sync(); toast("Signed in ✓ — syncing"); route(); }
+    catch (e) { toast(/confirm/i.test(e.message) ? "Confirm your email first (check your inbox)" : e.message, 4000); }
+  },
+  async signUp() {
+    const email = $("#cem").value.trim(), password = $("#cpw").value;
+    if (!/^\S+@\S+\.\S+$/.test(email)) return toast("Enter a valid email");
+    if (password.length < 12) return toast("Use a password of 12+ characters");
+    try {
+      const j = await authCall("signup", { email, password });
+      if (j.access_token) { saveAuth(j); await sync(); route(); toast("Account created ✓"); }
+      else toast("Check your inbox and confirm your email, then tap Sign in", 6000);
+    } catch (e) { toast(e.message, 4000); }
+  },
+  signOut() { signOut(); toast("Signed out. Progress stays on this device."); route(); },
+  async syncNow() { await sync(); toast(lastErr || $("#syncDot").title); route(); },
   extDone(el) {
     const n = +el.dataset.day;
     if (!dayComplete(n)) { put("progress", { id: `${n}:complete`, day: n, done: 1 }); toast(`Day ${n} marked as studied ✓`); }

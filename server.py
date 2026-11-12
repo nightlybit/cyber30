@@ -218,7 +218,7 @@ def reminder_loop():
 # ---------------------------------------------------------------- HTTP
 SEC_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; "
-                               "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+                               "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co; "
                                "frame-ancestors 'none'; base-uri 'none'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",

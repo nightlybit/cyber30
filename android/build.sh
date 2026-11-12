@@ -2,8 +2,7 @@
 # Builds Cyber30.apk without Gradle: aapt2 -> javac -> d8 -> zipalign -> apksigner.
 # Needs: JDK 17+, Android SDK at $ANDROID_HOME (default ~/Android) with platforms;android-35 and build-tools;35.0.0.
 #
-# The APK is a PERSONAL build: it contains your server address and access key so it can sync
-# with your Kali machine. Don't share it. Override the address with: SERVER=http://IP:8730 ./build.sh
+# Sync uses the Supabase project in web/config.js (publishable key only); you sign in inside the app.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 ROOT=..
@@ -17,9 +16,7 @@ KSPASS="$HOME/.cyber30/keystore.pass"
 rm -rf "$OUT" && mkdir -p "$OUT"/{assets/content,classes,gen,dex}
 cp -r "$ROOT/web" "$OUT/assets/web"
 cp -r "$ROOT/content/days" "$OUT/assets/content/days"
-SERVER="${SERVER:-http://$(hostname -I | awk '{print $1}'):8730}"
-KEY="$(cat "$ROOT/data/access_key.txt")"
-printf '{"server":"%s","key":"%s"}' "$SERVER" "$KEY" > "$OUT/assets/config.json"
+[ -f "$ROOT/web/config.js" ] || echo "Note: no web/config.js - the app will work offline-only (see web/config.example.js)"
 VERSION="$(date +%Y%m%d)"
 
 echo "[1/5] resources"
@@ -48,4 +45,4 @@ if [ ! -f "$KS" ]; then  # one signing key, kept outside the repo; keep it to in
 fi
 "$BT/apksigner" sign --ks "$KS" --ks-pass "file:$KSPASS" --out "$ROOT/Cyber30.apk" "$OUT/aligned.apk"
 "$BT/apksigner" verify "$ROOT/Cyber30.apk"
-echo "Built $(cd "$ROOT" && pwd)/Cyber30.apk  (syncs with $SERVER)"
+echo "Built $(cd "$ROOT" && pwd)/Cyber30.apk"

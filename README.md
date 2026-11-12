@@ -9,14 +9,21 @@ One app for **Kali Linux** and **Android**, sharing **one database** (SQLite on 
 This starts the server automatically at login and adds **Cyber30** to your app menu.
 To try it without installing, run `python3 server.py` and open http://localhost:8730.
 
+## Cloud sync (optional, recommended)
+Sync PC and phone from anywhere with a free Supabase project:
+1. Create a project at supabase.com, then run `supabase/schema.sql` in its SQL Editor.
+2. Copy `web/config.example.js` to `web/config.js` and add your project URL and **publishable** key.
+3. In the app: Me tab -> Create account -> confirm the email -> Sign in (same account on every device).
+4. Then in Supabase -> Authentication -> Sign In / Providers, turn off "Allow new users to sign up".
+Your rows are protected by Row Level Security: each account can only read and write its own progress.
+
 ## Android app (APK)
-Build a native Android app with every lesson inside it. It works offline, syncs with your Kali database on your Wi-Fi, and sends daily reminders:
+Build a native Android app with every lesson inside it. It works offline, syncs through your cloud account (see above), fetches live threats itself, and sends daily reminders:
 ```bash
 ./android/build.sh        # creates Cyber30.apk (needs JDK 17+ and Android SDK in ~/Android)
 ```
 Copy `Cyber30.apk` to your phone (USB cable, or your own cloud drive), open it, and allow "install unknown apps".
-**It's a personal build containing your access key, so don't share it.** If your Kali IP changes, update it in the app's
-Me tab, or rebuild with `SERVER=http://NEW-IP:8730 ./android/build.sh`. Keep `~/.cyber30/` (the signing key) to install updates.
+Keep `~/.cyber30/` (the signing key) so you can install updates over the existing app.
 
 ## Or add your phone through the browser
 1. Phone on the same Wi-Fi as Kali.

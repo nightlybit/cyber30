@@ -5,3 +5,4 @@ __pycache__/
 android/build/
 Cyber30.apk
 *.idsig
+web/config.js
