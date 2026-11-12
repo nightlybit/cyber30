@@ -45,6 +45,39 @@ const PLANNED = {
   25: "Malware & social engineering", 26: "Blue team & detection", 27: "Cloud & container security",
   28: "Zero-days & vulnerability research", 29: "Speaking & writing like a pro", 30: "Capstone & career roadmap",
 };
+// Days without an in-app lesson: study them with free, legal outside training instead.
+const EXTERNAL = {
+  14: { note: "Learn how home and office Wi-Fi is secured, then check your own router.", links: [
+    ["Wi-Fi Alliance: Wi-Fi security explained (WPA2 / WPA3)", "https://www.wi-fi.org/discover-wi-fi/security"]],
+    check: ["Your router uses WPA3, or WPA2 with AES", "Your Wi-Fi password is long and random (20+ characters)", "WPS is turned off in the router settings", "Router firmware is up to date and the admin password was changed"] },
+  15: { note: "Install and learn Burp Suite, the tool web testers use to see and edit what the browser sends.", links: [
+    ["PortSwigger: Getting started with Burp Suite", "https://portswigger.net/burp/documentation/desktop/getting-started"],
+    ["PortSwigger Web Security Academy (free labs)", "https://portswigger.net/web-security"]] },
+  16: { note: "Learn the OWASP Top 10 and access control: why apps must check who is allowed to do what.", links: [
+    ["OWASP Top 10", "https://owasp.org/Top10/"],
+    ["PortSwigger Academy: Access control", "https://portswigger.net/web-security/access-control"]] },
+  17: { note: "Learn how SQL injection works and how parameterized queries prevent it, with free legal labs.", links: [
+    ["PortSwigger Academy: SQL injection", "https://portswigger.net/web-security/sql-injection"],
+    ["OWASP: SQL Injection Prevention Cheat Sheet", "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"]] },
+  18: { note: "Learn cross-site scripting and how output encoding and CSP stop it, with free legal labs.", links: [
+    ["PortSwigger Academy: Cross-site scripting", "https://portswigger.net/web-security/cross-site-scripting"],
+    ["OWASP: XSS Prevention Cheat Sheet", "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html"]] },
+};
+function vExternal(n) {
+  const x = EXTERNAL[n], comp = dayComplete(n);
+  view().innerHTML = `
+    <div class="player-top"><a class="x" href="#/path" aria-label="Close"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></a></div>
+    <div class="eyebrow">Day ${n} · Study with a free outside course</div><h1>${esc(PLANNED[n])}</h1>
+    <p class="body">${esc(x.note)}</p>
+    <div class="card">${x.links.map(([t, u]) => `<p><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(t)} ↗</a></p>`).join("")}
+      <p class="small muted">Tip: work through the reading in short sessions, then try one lab. Only practise on the provider's own labs or your own devices.</p></div>
+    ${x.check ? `<div class="card"><h3>Check your own setup</h3>${x.check.map((c) => `<label class="row" style="font-weight:500"><input type="checkbox" style="width:auto"> ${esc(c)}</label>`).join("")}</div>` : ""}
+    <div class="box defend"><h4>Reflect</h4>Write in your journal: what's the one thing a defender must do to stop this kind of attack?</div>
+    <textarea id="reflectBox" placeholder="Your notes…">${esc((S.journal[n] || {}).text || "")}</textarea>
+    <div class="player-nav"><button class="btn" data-act="extDone" data-day="${n}">${comp ? "Studied ✓ (back to path)" : "Mark as studied ✓"}</button></div>`;
+  const ta = $("#reflectBox"); let t;
+  ta.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => put("journal", { day: n, text: ta.value }), 600); });
+}
 const LEVELS = [[0, "Curious Beginner"], [400, "Script Apprentice"], [1200, "Recon Scout"], [2500, "Junior Analyst"], [4200, "Pentester"], [6500, "Security Pro"]];
 // Plain-English meaning of common weakness types (CWE), linked to the day that teaches them.
 const CWE = {
@@ -218,7 +251,7 @@ function vToday() {
     <div class="card hero">
       <div class="eyebrow">${allDone ? "Course complete" : `Day ${n} of 30 · ${esc(d ? d.theme : "")}`}</div>
       <h1>${allDone ? "You did all 30 days. 🛡️" : esc(d ? d.title : PLANNED[n])}</h1>
-      ${d ? `<p class="mindset">${md(d.mindset)}</p>` : `<p>This lesson isn't available yet.</p>`}
+      ${d ? `<p class="mindset">${md(d.mindset)}</p>` : EXTERNAL[n] ? `<p>${esc(EXTERNAL[n].note)}</p><a class="btn block" href="#/day/${n}/0">Open today's study links →</a>` : `<p>This lesson isn't available yet.</p>`}
       <div class="bar"><i style="width:${pct}%"></i></div>
       <p class="small muted">${pct}% done · about ${d ? d.minutes || 40 : "?"} min total · ${pace}</p>
       ${d && !allDone ? `<a class="btn block" href="#/day/${n}/${firstUndone(n)}">${pct ? "Continue" : "Start today's lesson"} →</a>` : ""}
@@ -244,10 +277,10 @@ function vPath() {
     for (let n = a; n <= b; n++) {
       const d = DAYS[n], open = unlocked(n), comp = dayComplete(n), pct = dayPct(n);
       const cls = comp ? "done" : n === cur ? "current" : open ? "" : "locked";
-      const href = open && d ? `#/day/${n}/${comp ? 0 : firstUndone(n)}` : "";
+      const href = open && (d || EXTERNAL[n]) ? `#/day/${n}/${comp || !d ? 0 : firstUndone(n)}` : "";
       h += `<a class="day-row ${cls}" ${href ? `href="${href}"` : `aria-disabled="true"`} data-act="${href ? "" : "locked"}">
         <div class="day-num">${comp ? "✓" : n}</div>
-        <div class="t"><b>${esc(d ? d.title : PLANNED[n])}</b><span class="small muted">${d ? esc(d.theme) + " · " + (d.minutes || 40) + " min" : "Lesson not available yet"}${pct && !comp ? ` · ${pct}%` : ""}</span></div>
+        <div class="t"><b>${esc(d ? d.title : PLANNED[n])}</b><span class="small muted">${d ? esc(d.theme) + " · " + (d.minutes || 40) + " min" : EXTERNAL[n] ? "Free outside course" : "Lesson not available yet"}${pct && !comp ? ` · ${pct}%` : ""}</span></div>
         <span>${open ? (comp ? "" : "›") : "🔒"}</span></a>`;
     }
   }
@@ -258,6 +291,7 @@ function vPath() {
 let quizState = null;
 function vDay(nStr, iStr) {
   const n = +nStr, d = DAYS[n];
+  if (!d && EXTERNAL[n] && unlocked(n)) return vExternal(n);
   if (!d) { view().innerHTML = `<div class="empty"><h2>Lesson not available yet</h2><p>Day ${n} (${esc(PLANNED[n] || "")}) hasn't been added.</p><a class="btn ghost" href="#/path">Back to path</a></div>`; return; }
   if (!unlocked(n)) { view().innerHTML = `<div class="empty"><h2>🔒 Day ${n} is locked</h2><p>Finish Day ${n - 1} first — or come back on schedule.</p><a class="btn ghost" href="#/path">Back to path</a></div>`; return; }
   const segs = segments(d), i = Math.max(0, Math.min(segs.length - 1, +iStr || 0)), seg = segs[i];
@@ -532,6 +566,11 @@ const ACT = {
   },
   async testNotify() { await sync(); try { await api("/api/test-notify", { method: "POST", body: "{}" }); toast("Test sent — check your desktop and phone"); } catch (e) { toast("Couldn't reach the server: " + e.message); } },
   async saveKey() { lsSet("c30key", $("#akey").value.trim()); const ok = await sync(); toast(needKey ? "That key didn't work" : "Connected ✓"); if (ok) route(); },
+  extDone(el) {
+    const n = +el.dataset.day;
+    if (!dayComplete(n)) { put("progress", { id: `${n}:complete`, day: n, done: 1 }); toast(`Day ${n} marked as studied ✓`); }
+    location.hash = "#/path";
+  },
   export: exportBackup,
 };
 document.addEventListener("click", (e) => {
