@@ -13,8 +13,12 @@ To try it without installing, run `python3 server.py` and open http://localhost:
 Sync PC and phone from anywhere with a free Supabase project:
 1. Create a project at supabase.com, then run `supabase/schema.sql` in its SQL Editor.
 2. Copy `web/config.example.js` to `web/config.js` and add your project URL and **publishable** key.
-3. In the app: Me tab -> Create account -> confirm the email -> Sign in (same account on every device).
-4. Then in Supabase -> Authentication -> Sign In / Providers, turn off "Allow new users to sign up".
+3. Set up Google sign-in: create a Google OAuth "Web application" client whose redirect URI is
+   `https://YOUR-PROJECT.supabase.co/auth/v1/callback`, then enable the Google provider in Supabase with its ID and secret
+   (and disable the Email provider). In Authentication -> URL Configuration set Site URL `http://localhost:8730` and add
+   redirect URLs `http://localhost:8730/**` and `app.cyber30://auth`.
+4. In the app: Me tab -> Continue with Google (same Google account on every device). After your first sign-in, turn off
+   "Allow new users to sign up" in Supabase.
 Your rows are protected by Row Level Security: each account can only read and write its own progress.
 
 ## Android app (APK)

@@ -29,6 +29,8 @@ import java.util.HashMap;
 public class MainActivity extends Activity {
     static final String HOST = "cyber30.local";
     private WebView web;
+    private boolean pageReady = false;
+    private Uri pendingAuth = null;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -49,6 +51,12 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageFinished(WebView v, String url) {
+                pageReady = true;
+                if (pendingAuth != null) { deliverAuth(pendingAuth); pendingAuth = null; }
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
                 if (HOST.equals(u.getHost())) return false;
@@ -60,6 +68,29 @@ public class MainActivity extends Activity {
         if (state != null) web.restoreState(state);
         else web.loadUrl("https://" + HOST + "/#/today");
         Reminder.createChannel(this);
+        handleIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+
+    private void handleIntent(Intent intent) {
+        Uri u = intent == null ? null : intent.getData();
+        if (u == null || !"app.cyber30".equals(u.getScheme()) || !"auth".equals(u.getHost())) return;
+        if (pageReady) deliverAuth(u); else pendingAuth = u;
+    }
+
+    private void deliverAuth(Uri u) {
+        String code = u.getQueryParameter("code");
+        String err = u.getQueryParameter("error_description");
+        if (err == null) err = u.getQueryParameter("error");
+        String js = "window.__c30auth&&window.__c30auth(" + (code == null ? "null" : JSONObject.quote(code)) + ","
+                + (err == null ? "null" : JSONObject.quote(err)) + ")";
+        web.evaluateJavascript(js, null);
     }
 
     @Override
@@ -103,6 +134,7 @@ public class MainActivity extends Activity {
         return "application/octet-stream";
     }
 
+    @SuppressWarnings("unused")
     private String readAsset(String name) {
         try (InputStream in = getAssets().open(name)) {
             ByteArrayOutputStream b = new ByteArrayOutputStream();
@@ -118,7 +150,12 @@ public class MainActivity extends Activity {
     /** Methods the web app can call as window.Cyber30Native.*. Only our bundled page is ever loaded. */
     class Bridge {
         @JavascriptInterface
-        public String config() { return readAsset("config.json"); }
+        public void openExternal(String url) {
+            if (url == null || !url.startsWith("https://")) return; // only open secure web pages
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) { }
+            });
+        }
 
         @JavascriptInterface
         public void http(final String id, final String method, final String url, final String key, final String body) {

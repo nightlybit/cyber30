@@ -170,6 +170,28 @@ function saveAuth(j) {
   lsSet("c30auth", JSON.stringify(auth));
 }
 function signOut() { auth = null; lsDel("c30auth"); }
+const REDIRECT = NATIVE ? "app.cyber30://auth" : location.origin + "/";
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function googleSignIn() {
+  if (!window.crypto || !crypto.subtle) return toast("Open the app on your Kali machine or the Android app to sign in", 5000);
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  lsSet("c30pkce", verifier);
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const url = `${CLOUD.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(REDIRECT)}&code_challenge=${challenge}&code_challenge_method=s256`;
+  if (NATIVE) NATIVE.openExternal(url); // Google blocks sign-in inside app WebViews, so use the real browser
+  else location.href = url;
+}
+async function finishSignIn(code, err) {
+  if (err) throw new Error(err);
+  const verifier = lsGet("c30pkce"); lsDel("c30pkce");
+  if (!code || !verifier) throw new Error("Sign-in expired — tap Continue with Google again");
+  saveAuth(await authCall("token?grant_type=pkce", { auth_code: code, code_verifier: verifier }));
+}
+window.__c30auth = async (code, err) => {
+  try { await finishSignIn(code, err); await sync(); toast("Signed in with Google ✓"); }
+  catch (e) { toast(e.message, 6000); }
+  location.hash = "#/me"; route();
+};
 async function token() {
   if (!auth) return null;
   if (auth.exp - nowS() < 90) {
@@ -210,7 +232,7 @@ async function sync() {
   save();
   const ok = cloudOk || (localOk && !(CLOUD && auth));
   dot.className = "sync-dot " + (ok ? "ok" : "off");
-  dot.title = cloudOk ? `Synced to the cloud as ${auth.email}` : localOk ? (CLOUD ? "Saved on your Kali machine — sign in (Me tab) to sync everywhere" : "Synced with your Kali machine")
+  dot.title = cloudOk ? `Synced to the cloud as ${auth.email}` : localOk ? (CLOUD ? "Saved on your Kali machine — sign in with Google (Me tab) to sync everywhere" : "Synced with your Kali machine")
     : CLOUD && !auth ? "Sign in on the Me tab to sync" : "Offline — progress saved on this device";
   return changed;
 }
@@ -549,11 +571,9 @@ async function vMe() {
       <p class="small">Signed in as <b>${esc(auth.email)}</b>. Your progress syncs across your PC and phone wherever you are.</p>
       <p class="small muted">${esc(lastErr || $("#syncDot").title)}</p>
       <div class="row"><button class="btn ghost" data-act="syncNow">Sync now</button><button class="btn ghost" data-act="signOut">Sign out</button></div>` : `
-      <p class="small muted">Sign in with the same account on your PC and phone to keep them in sync from anywhere.</p>
-      <label for="cem">Email</label><input id="cem" type="email" autocomplete="username" inputmode="email">
-      <label for="cpw">Password</label><input id="cpw" type="password" autocomplete="current-password" minlength="8">
-      <div class="row" style="margin-top:12px"><button class="btn" data-act="signIn">Sign in</button><button class="btn ghost" data-act="signUp">Create account</button></div>
-      <p class="small muted">New here? Tap <b>Create account</b>, confirm the email Supabase sends you, then sign in. Use 12+ characters.</p>`}</div>` : ""}
+      <p class="small muted">Sign in with the same Google account on your PC and phone to keep them in sync from anywhere.</p>
+      <button class="btn block" data-act="google"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg> Continue with Google</button>
+      <p class="small muted">Signing in for the first time creates your account. Your progress so far uploads automatically.</p>`}</div>` : ""}
     ${NATIVE ? "" : `<div class="card" id="connectCard"><h3>Your devices</h3>${isLocal ? `<p class="small muted">Loading phone link…</p>` : `
       <p class="small muted">This browser syncs with your Kali machine using an access key.</p>
       <label for="akey">Access key</label><div class="row" style="flex-wrap:nowrap"><input id="akey" value="${esc(lsGet("c30key") || "")}" autocomplete="off"><button class="btn ghost" data-act="saveKey">Save</button></div>`}</div>`}
@@ -646,22 +666,7 @@ const ACT = {
   async testNotify() { if (NATIVE) { NATIVE.requestNotifications(); NATIVE.testNotification(); return toast("Test notification sent"); } await sync(); try { await api("/api/test-notify", { method: "POST", body: "{}" }); toast("Test sent — check your desktop and phone"); } catch (e) { toast("Couldn't reach the server: " + e.message); } },
   async saveKey() {
     lsSet("c30key", $("#akey").value.trim()); const ok = await sync(); toast(needKey ? "That key didn't work" : "Connected ✓"); if (ok) route(); },
-  async signIn() {
-    const email = $("#cem").value.trim(), password = $("#cpw").value;
-    if (!email || !password) return toast("Enter your email and password");
-    try { saveAuth(await authCall("token?grant_type=password", { email, password })); await sync(); toast("Signed in ✓ — syncing"); route(); }
-    catch (e) { toast(/confirm/i.test(e.message) ? "Confirm your email first (check your inbox)" : e.message, 4000); }
-  },
-  async signUp() {
-    const email = $("#cem").value.trim(), password = $("#cpw").value;
-    if (!/^\S+@\S+\.\S+$/.test(email)) return toast("Enter a valid email");
-    if (password.length < 12) return toast("Use a password of 12+ characters");
-    try {
-      const j = await authCall("signup", { email, password });
-      if (j.access_token) { saveAuth(j); await sync(); route(); toast("Account created ✓"); }
-      else toast("Check your inbox and confirm your email, then tap Sign in", 6000);
-    } catch (e) { toast(e.message, 4000); }
-  },
+  google() { googleSignIn(); },
   signOut() { signOut(); toast("Signed out. Progress stays on this device."); route(); },
   async syncNow() { await sync(); toast(lastErr || $("#syncDot").title); route(); },
   extDone(el) {
@@ -688,6 +693,12 @@ setInterval(() => {
   applyTheme();
   const k = new URLSearchParams(location.search).get("k");
   if (k) { lsSet("c30key", k); history.replaceState(null, "", location.pathname + (location.hash || "#/today")); }
+  const qs = new URLSearchParams(location.search), hs = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const oauthCode = qs.get("code"), oauthErr = qs.get("error_description") || hs.get("error_description");
+  if (oauthCode || oauthErr) {
+    history.replaceState(null, "", location.pathname + "#/me");
+    try { await finishSignIn(oauthCode, oauthErr); toast("Signed in with Google ✓"); } catch (e) { toast(e.message, 6000); }
+  }
   if (!NATIVE && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   window.addEventListener("hashchange", route);
   view().innerHTML = `<div class="empty">Loading your lessons…</div>`;
