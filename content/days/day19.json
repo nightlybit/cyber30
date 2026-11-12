@@ -1,0 +1,174 @@
+{
+  "day": 19,
+  "week": 4,
+  "title": "Who Are You, Really?",
+  "theme": "Web - Authentication & Sessions",
+  "minutes": 50,
+  "mindset": "A login proves who you are once; a session is the wristband that keeps proving it. Attackers steal the wristband, not the password.",
+  "cards": [
+    {
+      "title": "Login vs. session",
+      "body": "Logging in is like showing your ID at a club door. You do it once. After that the bouncer gives you a wristband so you do not re-show ID at every room. On the web that wristband is a **session**, usually stored as a **cookie** in your browser. Every request you make carries the cookie, and the server trusts it. This is convenient, but it means the wristband is now as valuable as your ID. If someone copies it, the server cannot tell them apart from you."
+    },
+    {
+      "title": "Where sessions live",
+      "body": "After login the server creates a long random **session ID** (like `a7f3...9b2`) and stores 'this ID = Alice'. It sends the ID to your browser as a cookie. Two cookie flags matter. `HttpOnly` means JavaScript cannot read the cookie, blocking theft via scripts. `Secure` means the cookie is only sent over HTTPS, so it is not leaked on open Wi-Fi. A missing `Secure` or `HttpOnly` flag is a common, easy-to-spot weakness attackers love."
+    },
+    {
+      "title": "Session hijacking",
+      "body": "If an attacker gets your session ID, they paste it into their own browser and become you, no password needed. They might grab it by sniffing unencrypted traffic, by a cross-site scripting bug that reads a non-HttpOnly cookie, or by **session fixation** (tricking you into using a session ID they already know). The fix: use HTTPS everywhere, set cookie flags, and crucially **rotate the session ID at login** so any pre-set value becomes useless."
+    },
+    {
+      "title": "CSRF: tricking your browser",
+      "body": "**Cross-Site Request Forgery** abuses the fact that your browser attaches your cookie to every request automatically, even ones triggered by another site. Imagine a bank that transfers money when you visit a special link. An attacker emails you a page that quietly loads `bank.com/transfer?to=attacker`. Your browser helpfully sends your banking cookie along, and the bank thinks you asked. The classic defense is a **CSRF token**: a secret value in the real form that a forged request cannot know, plus `SameSite` cookies that stop cookies riding on cross-site requests."
+    },
+    {
+      "title": "JWT: the self-describing ticket",
+      "body": "A **JWT** (JSON Web Token) is a ticket that carries your identity inside it, signed by the server so it cannot be forged. It has three dot-separated parts: header, payload (who you are), and a signature. The server does not store it; it just checks the signature. Danger spots: some libraries accept `alg: none` (no signature) if asked, or trust a weak secret an attacker can brute force. A JWT you can decode (it is only Base64, not encrypted) is readable by anyone, so never put secrets in the payload."
+    },
+    {
+      "title": "MFA and credential stuffing",
+      "body": "People reuse passwords. When one site is breached, attackers take those millions of email/password pairs and try them on other sites automatically. This is **credential stuffing** (not guessing, just replaying known leaks). It works because reuse is everywhere. **Multi-Factor Authentication (MFA)** blocks it: even a correct password fails without a second factor like a phone code or a hardware key. Rate limiting and watching for many logins from one IP also help defenders spot the flood."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Session hijacking",
+      "analogy": "Someone copies your club wristband and walks into every VIP room as you, while you are still inside.",
+      "how": [
+        "Attacker obtains a valid session ID (sniffing, XSS reading a non-HttpOnly cookie, or guessing a weak ID)",
+        "They set that same cookie value in their own browser",
+        "The server sees a known good session and serves them your account with no password"
+      ],
+      "thinking": "The attacker asks: does this site really re-check who you are, or does it just trust a long string in a cookie? If so, that string is the only thing I need to steal.",
+      "signs": "The same session ID used from two far-apart IPs or devices at once; sudden change of user-agent mid-session; impossible-travel logins.",
+      "defend": "HTTPS everywhere, set HttpOnly + Secure + SameSite on cookies, regenerate the session ID at login and logout, and expire idle sessions."
+    },
+    {
+      "name": "CSRF (Cross-Site Request Forgery)",
+      "analogy": "A stranger hands you a pre-written cheque and your bank cashes it just because it is in your chequebook's handwriting.",
+      "how": [
+        "Victim is logged into a target site in one tab",
+        "Attacker lures them to a malicious page that auto-submits a request to the target",
+        "The browser attaches the victim's cookie, so the target performs the action as the victim"
+      ],
+      "thinking": "The attacker asks: does this action rely only on the cookie the browser sends automatically? If there is no unguessable token tied to the session, I can forge the request from anywhere.",
+      "signs": "State-changing requests arriving with a cross-site Referer/Origin, or missing the expected CSRF token; unexpected actions users deny making.",
+      "defend": "Require a per-session CSRF token on state-changing requests, set cookies to SameSite=Lax or Strict, and check the Origin header."
+    },
+    {
+      "name": "Credential stuffing",
+      "analogy": "A thief has a huge keyring of keys stolen from other buildings and tries each on your front door until one fits.",
+      "how": [
+        "Attacker buys or downloads leaked username/password pairs from a prior breach",
+        "They automate logins across many sites using those pairs",
+        "Any account where the user reused the password falls open"
+      ],
+      "thinking": "The attacker knows people reuse passwords, so they do not guess at all; they replay real leaks and bet that some victims used the same password here.",
+      "signs": "A spike in failed logins from many IPs, high login volume for valid usernames, logins from unusual geographies, many 'account locked' events.",
+      "defend": "Enforce MFA, rate-limit and lock after failures, check passwords against known-breach lists, and use CAPTCHAs on abnormal traffic."
+    }
+  ],
+  "story": {
+    "title": "Firesheep demo (2010)",
+    "body": "A developer released Firesheep, a one-click browser add-on, to prove a point: popular sites like Facebook and Twitter sent session cookies over unencrypted Wi-Fi. Anyone on the same coffee-shop network could click a name in Firesheep and instantly log in as that stranger, no password needed. It was pure session hijacking, made trivially easy. The public shock pushed major sites to switch to full HTTPS, which hides the cookie in transit. The lesson: a password is useless protection if the wristband that follows it travels in the clear."
+  },
+  "lab": {
+    "title": "Inspect and decode a session token",
+    "goal": "See a real session cookie and JWT, and understand what is (and is not) protected.",
+    "steps": [
+      "Register a free account on PortSwigger's Web Security Academy (they grant permission to attack their labs)",
+      "Open a lab in Firefox, log in, then open Developer Tools (F12) and look at the Storage/Cookies tab",
+      "Note whether the session cookie has HttpOnly and Secure flags set",
+      "Copy any JWT you find and decode its parts on the command line to read the payload",
+      "Observe that the payload is readable, proving a JWT is signed, not secret"
+    ],
+    "commands": [
+      {
+        "cmd": "echo 'eyJhbGciOiJIUzI1NiJ9' | base64 -d",
+        "explain": "Decodes one Base64 part of a JWT; shows that anyone can read a token's contents, so secrets must never be stored inside it."
+      },
+      {
+        "cmd": "curl -I https://example.com/login",
+        "explain": "Fetches only the response headers (-I); lets you read the Set-Cookie line and check for HttpOnly, Secure and SameSite flags."
+      },
+      {
+        "cmd": "hashid '$2b$12$abcdefghijklmnopqrstuv'",
+        "explain": "Identifies a hash type; useful when a captured session or token looks like a hash and you want to know what you are looking at."
+      }
+    ],
+    "safety": "Only decode tokens from your own accounts or from PortSwigger/Hack The Box labs that grant permission. Never test cookies belonging to other people or real sites you do not own."
+  },
+  "hunt": "Scenario: A web app logs you in and your URL becomes `https://shop.com/account?sid=5`. You change it to `sid=6` and suddenly you are viewing another customer's profile. What is wrong here? Answer: The session is identified by a short, predictable, sequential number instead of a long random value, and the server does not verify the session belongs to you. An attacker can simply count upward to walk through every account. Session IDs must be long, random, unguessable, and bound to the logged-in user, not passed as a guessable number in the URL.",
+  "terms": [
+    { "term": "Session", "def": "The server's memory that you are already logged in, usually tracked by a cookie your browser sends on every request.", "use": "The session fixed as soon as they rotated the ID on login." },
+    { "term": "Cookie", "def": "A small piece of data a site stores in your browser and sends back on each request, often holding the session ID.", "use": "The cookie was missing the HttpOnly flag, so XSS could steal it." },
+    { "term": "CSRF", "def": "An attack that makes your browser send a real, logged-in request to a site without your intent.", "use": "Add a CSRF token and this forged transfer stops working." },
+    { "term": "JWT", "def": "A signed, self-contained token that carries your identity so the server need not store a session.", "use": "Their JWT accepted alg:none, so we forged an admin token." },
+    { "term": "MFA", "def": "Requiring a second proof (phone code, hardware key) beyond the password to log in.", "use": "Credential stuffing failed because MFA was enforced." },
+    { "term": "Credential stuffing", "def": "Automatically replaying username/password pairs leaked from other breaches against a site.", "use": "That login spike looks like credential stuffing, not real users." },
+    { "term": "SameSite", "def": "A cookie setting that stops the browser from sending the cookie on requests coming from other sites.", "use": "SameSite=Strict blocked the CSRF entirely." }
+  ],
+  "quiz": [
+    {
+      "q": "Why is stealing a session cookie as dangerous as stealing a password?",
+      "options": [
+        "It can be decrypted to reveal the password",
+        "The server trusts the cookie to prove identity, so the thief becomes you without a password",
+        "It contains the user's MFA secret",
+        "It disables HTTPS"
+      ],
+      "answer": 1,
+      "why": "The session ID is what the server trusts after login, so possessing it is enough to impersonate the user."
+    },
+    {
+      "q": "What does the HttpOnly cookie flag prevent?",
+      "options": [
+        "The cookie being sent over HTTP",
+        "The cookie from expiring",
+        "JavaScript in the page from reading the cookie",
+        "The server from setting the cookie"
+      ],
+      "answer": 2,
+      "why": "HttpOnly hides the cookie from JavaScript, which blocks theft through cross-site scripting."
+    },
+    {
+      "q": "A CSRF attack succeeds mainly because:",
+      "options": [
+        "The browser automatically attaches your cookies to requests, even cross-site ones",
+        "Passwords are too short",
+        "HTTPS is disabled",
+        "The server stores passwords in plaintext"
+      ],
+      "answer": 0,
+      "why": "CSRF rides on the browser's automatic cookie attachment, which is why a secret token or SameSite is needed."
+    },
+    {
+      "q": "Why can anyone read the contents of a JWT?",
+      "options": [
+        "It is encrypted with a public key",
+        "The payload is only Base64-encoded, not encrypted; the signature just prevents tampering",
+        "JWTs are stored on a public server",
+        "Browsers decrypt it automatically"
+      ],
+      "answer": 1,
+      "why": "A JWT is signed for integrity but its payload is merely encoded, so it is readable and must not hold secrets."
+    },
+    {
+      "q": "What best stops credential stuffing?",
+      "options": [
+        "Longer session timeouts",
+        "Using cookies instead of tokens",
+        "Enforcing MFA and rate limiting",
+        "Removing the login page"
+      ],
+      "answer": 2,
+      "why": "MFA defeats replayed leaked passwords, and rate limiting slows the automated flood."
+    }
+  ],
+  "talk": {
+    "scenario": "A manager asks: 'We use HTTPS, so are our logins safe?'",
+    "model": "HTTPS is essential because it hides the session cookie in transit, but it is only part of the picture. We also need HttpOnly, Secure and SameSite flags on that cookie, and we must regenerate the session ID at login to prevent fixation. For state-changing actions we need CSRF tokens, and across the board we should enforce MFA to blunt credential stuffing from password reuse. In short, HTTPS protects the wristband on the way to the user, but we still have to protect it once it is in the browser."
+  },
+  "reflect": "Think about a site you use daily. If someone copied just your session cookie right now, what could they do before you noticed, and what single control would most limit the damage?"
+}

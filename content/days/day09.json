@@ -1,0 +1,178 @@
+{
+  "day": 9,
+  "week": 2,
+  "title": "Knocking on Every Door with Nmap",
+  "theme": "Recon / Scanning",
+  "minutes": 55,
+  "mindset": "Every open port is a program saying 'talk to me', and every program can be wrong.",
+  "cards": [
+    {
+      "title": "What Nmap does",
+      "body": "**Nmap** (Network Mapper) is the standard tool for finding which computers are alive on a network, which **ports** are open, and what software is listening behind them.\n\nRemember: a port is like a numbered door on a building (Day 4). Nmap walks down the corridor knocking on each door and writing down who answers, what they say, and in what accent. Attackers and defenders both use it, because you cannot protect, or attack, a door you do not know exists."
+    },
+    {
+      "title": "Host discovery: who is home?",
+      "body": "Before knocking on doors, Nmap checks which houses are occupied. This is **host discovery**, done with `-sn` (no port scan).\n\nOn your local network Nmap uses **ARP** requests (asking 'who has this IP?'), which nearly every device must answer. Across the internet it sends a mix of pings and TCP probes to common ports. Watch out: many hosts block ping, so 'no reply' does not mean 'nobody home'. The `-Pn` flag tells Nmap to skip discovery and treat the host as alive anyway."
+    },
+    {
+      "title": "Port states: open, closed, filtered",
+      "body": "Nmap reports each port as:\n- **open**: a program is listening and answered. A door with someone behind it.\n- **closed**: the host answered 'nothing here' (a TCP reset). The building exists, but this door is bricked up.\n- **filtered**: no answer at all, usually because a firewall dropped the knock. You cannot tell if anyone is there.\n\nAttackers care about all three. Open ports are targets; filtered ports reveal a firewall; closed ports confirm the host is alive."
+    },
+    {
+      "title": "SYN scan vs connect scan",
+      "body": "Recall the TCP handshake: SYN, SYN-ACK, ACK. A **connect scan** (`-sT`) completes all three steps, like knocking, hearing 'hello?', and saying 'hi' back. The program logs a full connection.\n\nA **SYN scan** (`-sS`, the default when you use `sudo`) sends SYN, sees SYN-ACK (open!), then sends a reset instead of finishing. It is like knocking and walking away once you hear footsteps. It is faster and was historically quieter, though modern firewalls and IDS still notice it. It needs root because it crafts raw packets."
+    },
+    {
+      "title": "UDP scanning: the slow, quiet doors",
+      "body": "**UDP** has no handshake (Day 4), so there is no polite 'hello' to listen for. With `-sU`, Nmap sends a packet and waits. A 'port unreachable' message means closed; silence could mean open *or* filtered, so it often shows `open|filtered`.\n\nIt is like posting letters to flats with no doorbell and guessing from who does not return them. It is slow, so pros scan only top ports. But it matters: DNS (53), SNMP (161) and TFTP (69) are UDP and often leak information."
+    },
+    {
+      "title": "Service and version detection",
+      "body": "An open port 80 *usually* means a web server, but not always. With `-sV`, Nmap talks to each open port and compares the replies against a database of thousands of fingerprints, reporting things like `Apache httpd 2.4.7`.\n\nThis is the attacker's goldmine. A version number is like reading the make and model of a lock: once you know it is a 'Brand X 2014 model', you can look up its known weaknesses (Day 11). `-O` tries to guess the operating system in a similar way."
+    },
+    {
+      "title": "NSE: Nmap's script engine",
+      "body": "The **Nmap Scripting Engine (NSE)** runs small scripts against services: grabbing web page titles, listing SMB shares, checking for known vulnerabilities. `-sC` runs the safe **default** category. You can choose scripts by name (`--script http-title`) or category (`--script vuln`).\n\nScripts live in `/usr/share/nmap/scripts/`. Some categories, like `intrusive`, `brute` and `dos`, can crash or lock things, so read before you run. Think of NSE as giving your door-knocker a toolbox of polite follow-up questions."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Network port scanning (attacker reconnaissance)",
+      "analogy": "A thief walking down a street at night, quietly trying every front door and noting which ones are unlocked.",
+      "how": [
+        "The attacker discovers live hosts in a target range.",
+        "They scan for open TCP ports (and top UDP ports) on each live host.",
+        "They run version detection to identify the exact software behind each port.",
+        "They shortlist outdated or risky services (old SMB, exposed databases, admin panels) for exploitation."
+      ],
+      "thinking": "Which services are exposed that should not be? Which versions are old? What did the admin forget to firewall?",
+      "signs": "Firewall or IDS logs showing one source touching many ports in a short time, many half-open (SYN without ACK) connections, Nmap's default probes and user-agent strings in web logs.",
+      "defend": "Close or firewall unneeded ports, expose admin services only via VPN, keep software patched, run your own scans to see what attackers see, and alert on scan patterns."
+    },
+    {
+      "name": "Service fingerprinting to target known flaws",
+      "analogy": "Reading the brand stamped on a padlock, then looking up a YouTube video on how that exact model is picked.",
+      "how": [
+        "The attacker runs `-sV` or grabs banners to get precise product and version strings.",
+        "They search vulnerability databases and exploit-db for that version.",
+        "If a public exploit exists, they test it against the service."
+      ],
+      "thinking": "The version string is a confession. If they are running a release from years ago, someone has probably already written an exploit.",
+      "signs": "Odd or malformed requests to services (version probes), followed by exploit-looking traffic to the same port.",
+      "defend": "Patch promptly, hide or minimise version banners where possible (this slows attackers but is not real protection), and use an IDS to flag known exploit patterns."
+    }
+  ],
+  "story": {
+    "title": "WannaCry ransomware worm (2017)",
+    "body": "In May 2017, WannaCry spread to over 200,000 computers in about 150 countries, hitting the UK's NHS, Telefonica, FedEx and others. It used **EternalBlue**, an exploit for a flaw in Windows SMBv1 (patched by Microsoft in March 2017 as MS17-010). The worm scanned for machines with **TCP port 445** reachable and unpatched, then infected them automatically. Many victims had SMB exposed or ran flat internal networks. **Lesson:** an open port plus an old version is exactly what scanners, human or automated, look for. Know your open ports, patch fast, and never expose SMB to the internet."
+  },
+  "lab": {
+    "title": "Map scanme.nmap.org and your own VM",
+    "goal": "Use Nmap to discover hosts, identify open ports and service versions, and run safe NSE scripts, against targets you are allowed to scan.",
+    "steps": [
+      "Find your VM network range with `ip -brief address` (e.g. 192.168.56.0/24 for a VirtualBox host-only network).",
+      "Run a ping sweep on that range to list live hosts (your Kali and, if running, Metasploitable 2).",
+      "Run a SYN scan of the top 100 ports on scanme.nmap.org.",
+      "Add version detection and default scripts on the two ports you found open, and read the output carefully.",
+      "Try a small UDP scan against your own machine to see how slow and uncertain UDP results are.",
+      "Save your results in all formats so you can refer to them later."
+    ],
+    "commands": [
+      {
+        "cmd": "sudo nmap -sn 192.168.56.0/24",
+        "explain": "`-sn` means discover hosts only, no port scan. `192.168.56.0/24` is the whole range .1 to .254. Replace it with your own lab network."
+      },
+      {
+        "cmd": "sudo nmap -sS --top-ports 100 scanme.nmap.org",
+        "explain": "`-sS` is a SYN (half-open) scan; `--top-ports 100` checks the 100 most common ports only, keeping the scan light. `sudo` allows raw packets."
+      },
+      {
+        "cmd": "nmap -sV -sC -p 22,80 scanme.nmap.org",
+        "explain": "`-sV` detects service versions, `-sC` runs default safe NSE scripts, `-p 22,80` limits it to SSH and HTTP."
+      },
+      {
+        "cmd": "sudo nmap -sU --top-ports 20 127.0.0.1",
+        "explain": "`-sU` is a UDP scan, `--top-ports 20` keeps it short, `127.0.0.1` is your own machine. Notice the `open|filtered` uncertainty."
+      },
+      {
+        "cmd": "nmap --script http-title -p 80 scanme.nmap.org",
+        "explain": "Runs one NSE script, `http-title`, which fetches the web page and prints its title."
+      },
+      {
+        "cmd": "sudo nmap -sV --top-ports 100 -oA scan1 scanme.nmap.org",
+        "explain": "`-oA scan1` saves output in three formats: normal (.nmap), XML (.xml) and greppable (.gnmap). Pros always save scans as evidence."
+      }
+    ],
+    "safety": "scanme.nmap.org is provided by the Nmap project for light testing only: a few scans, no brute force, no vuln or DoS scripts, no full 65535-port scans repeatedly. Everything else should only be your own VMs. Scanning networks without permission can be illegal and can break fragile devices."
+  },
+  "hunt": "You scan a company's public IP (with permission) and see: `22/tcp open ssh`, `443/tcp open https`, `3306/tcp open mysql MySQL 5.5.62`, `8080/tcp open http Jenkins`. What stands out?\n\nAnswer: MySQL (3306) should never face the internet; databases belong behind the web server, and 5.5 is long end-of-life with no security updates. Jenkins on 8080 is an admin and automation tool; if exposed without strong authentication, its script console can run commands on the server. These two ports are the attacker's priority. Fix: firewall 3306 and 8080 to internal or VPN access only, upgrade MySQL, and lock down Jenkins.",
+  "terms": [
+    {
+      "term": "Port scan",
+      "def": "Probing a host's ports to find which ones have programs listening.",
+      "use": "The port scan shows 3389 open, so RDP is exposed to the internet."
+    },
+    {
+      "term": "SYN scan",
+      "def": "A scan that sends only the first step of the TCP handshake and resets after the reply; fast and less noisy than a full connect.",
+      "use": "Run a SYN scan of the top thousand ports first, then go deeper on what's open."
+    },
+    {
+      "term": "Filtered",
+      "def": "An Nmap port state meaning no response came back, usually because a firewall dropped the probe.",
+      "use": "Everything except 443 is filtered, so there's a decent firewall in front."
+    },
+    {
+      "term": "Banner",
+      "def": "The greeting text a service sends when you connect, often revealing its name and version.",
+      "use": "The SSH banner says OpenSSH 7.2, so this box hasn't been updated in years."
+    },
+    {
+      "term": "Service fingerprinting",
+      "def": "Identifying exactly which software and version runs on a port by analysing how it responds.",
+      "use": "Service fingerprinting shows it's not Apache at all, it's an embedded web server on a printer."
+    },
+    {
+      "term": "NSE",
+      "def": "The Nmap Scripting Engine: scripts that extend Nmap to gather extra details or check for known issues.",
+      "use": "I ran the smb-os-discovery NSE script to get the Windows version."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "Nmap reports a port as 'filtered'. What does that most likely mean?",
+      "options": ["A program is listening", "The host is turned off", "A firewall dropped the probe so Nmap got no reply", "The port is closed"],
+      "answer": 2,
+      "why": "Filtered means no answer came back, typically because a firewall silently dropped the packets."
+    },
+    {
+      "q": "Which flag performs service and version detection?",
+      "options": ["-sV", "-sn", "-Pn", "-oA"],
+      "answer": 0,
+      "why": "-sV probes open ports to identify the software and version. -sn is host discovery only, -Pn skips discovery, -oA saves output."
+    },
+    {
+      "q": "Why does a SYN scan need sudo/root?",
+      "options": ["It uses more memory", "It crafts raw packets instead of using the normal connection functions", "It writes to system logs", "It is illegal for normal users"],
+      "answer": 1,
+      "why": "Sending a SYN and then a reset by hand requires raw socket access, which Linux reserves for root."
+    },
+    {
+      "q": "Why are UDP scan results often 'open|filtered'?",
+      "options": ["UDP is encrypted", "Nmap does not support UDP", "UDP ports are always closed", "UDP has no handshake, so silence could mean open or blocked"],
+      "answer": 3,
+      "why": "Without a handshake, a lack of reply is ambiguous: the service may be listening quietly or a firewall may have dropped it."
+    },
+    {
+      "q": "WannaCry spread by finding machines with which port reachable?",
+      "options": ["TCP 445 (SMB)", "TCP 80 (HTTP)", "UDP 53 (DNS)", "TCP 22 (SSH)"],
+      "answer": 0,
+      "why": "WannaCry used the EternalBlue exploit against Windows SMBv1, which listens on TCP port 445."
+    }
+  ],
+  "talk": {
+    "scenario": "A system administrator asks: 'Our firewall blocks ping, so we're invisible to scanners, right?'",
+    "model": "Not quite. Blocking ping only defeats one host discovery method; Nmap with -Pn simply assumes the host is up and probes ports directly. If any port answers, say 443, we're visible, and a SYN scan plus service fingerprinting will show exactly what's running. The real protection is minimising open ports, putting admin services behind a VPN and keeping versions patched. I'd suggest we run our own external scan regularly so we see what attackers see."
+  },
+  "reflect": "Look at the open ports you found on your own Kali in the Day 7 lab and today. If you were an attacker, which one would you look at first and why?"
+}

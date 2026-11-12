@@ -1,0 +1,192 @@
+{
+  "day": 27,
+  "week": 5,
+  "title": "Someone Else's Computer: Cloud & Containers",
+  "theme": "Cloud & Container Security",
+  "minutes": 50,
+  "mindset": "In the cloud, the biggest hole is rarely a bug; it is a setting someone left on 'public' or a key someone left in the code.",
+  "cards": [
+    {
+      "title": "The cloud is someone else's computer",
+      "body": "**Cloud computing** means renting servers, storage and databases from a provider like AWS, Microsoft Azure or Google Cloud, controlled through a website and an **API** (a way for programs to talk to the service). It is like renting a flat instead of building a house: fast and flexible, but you still have to lock your own door. Attackers love the cloud because one mistake, such as a public storage folder, is reachable by the whole internet within minutes."
+    },
+    {
+      "title": "The shared responsibility model",
+      "body": "Cloud providers secure the **cloud itself**: data centres, physical hardware, the hypervisor. You secure **what you put in the cloud**: your data, accounts, permissions, network rules and app code. In a rented flat, the landlord fixes the roof and the building's front door; you lock your own flat and decide who gets a key. Most cloud breaches happen on the customer's side of this line, through **misconfiguration**, not because the provider was hacked."
+    },
+    {
+      "title": "Misconfigured storage buckets",
+      "body": "AWS **S3** stores files in 'buckets'. Each bucket has permissions; set them wrong and anyone on the internet can list and download the contents. It is like a storage unit with the shutter left open on a busy street. Attackers and researchers scan for guessable bucket names (`company-backups`, `company-dev`). AWS now enables **Block Public Access** by default on new buckets, but older or deliberately changed ones still leak. The attacker asks: 'What did someone make public by accident?'"
+    },
+    {
+      "title": "IAM: who can do what",
+      "body": "**IAM** (Identity and Access Management) controls which users, apps and services can do which actions on which resources. A **policy** might say 'this app may read files from bucket X'. The classic mistake is giving `*` (everything) because it is easier. It is like giving the cleaner a master key to the whole building, including the safe. Attackers who steal any credential immediately ask: 'What can this identity do, and can it give itself more power?' That is **cloud privilege escalation**."
+    },
+    {
+      "title": "Secrets in the wrong places",
+      "body": "A **secret** is anything that grants access: passwords, API keys, cloud access keys, tokens. Developers often leave them in source code, config files, Docker images or public GitHub repos. Automated bots scan GitHub constantly and can abuse a leaked cloud key within minutes, for example to run crypto-mining servers on your bill. It is like taping your house key to the front door. Fix: store secrets in a **secrets manager** (AWS Secrets Manager, HashiCorp Vault) and rotate any key that leaked, even briefly."
+    },
+    {
+      "title": "Containers and Docker",
+      "body": "A **container** packages an app with everything it needs so it runs the same anywhere. **Docker** is the most common tool. Unlike a virtual machine, containers **share the host's kernel** (the core of the operating system). Think of flats in one building: separate front doors, but shared foundations and plumbing. That sharing is efficient, but it means the walls between containers are thinner than between separate houses. An **image** is the template; a container is a running copy of it."
+    },
+    {
+      "title": "Container escape: the concept",
+      "body": "A **container escape** is breaking out of a container to control the host machine, and therefore every other container on it. It usually happens through misconfiguration rather than magic: running with `--privileged`, mounting the host's Docker socket (`/var/run/docker.sock`) inside the container, or adding powerful Linux **capabilities**. Also, being in the `docker` group on a host is effectively root on that host. The attacker's thought: 'This container was started with extra powers. Do the walls actually hold?'"
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Public bucket data exposure",
+      "analogy": "A filing cabinet of customer records left on the pavement outside the office.",
+      "how": [
+        "Attacker guesses or discovers bucket names (from website source code, DNS records, or naming patterns).",
+        "Requests a listing of the bucket without credentials.",
+        "If public, downloads everything: backups, logs, customer data, sometimes more keys."
+      ],
+      "thinking": "Companies name things predictably and developers make test buckets public 'just for a minute'. What is publicly readable right now?",
+      "signs": "Cloud access logs (S3 server access logs, CloudTrail data events) show anonymous listing or downloads from unknown IPs; cloud security posture tools flag public buckets.",
+      "defend": "Keep Block Public Access on at the account level, review bucket policies, encrypt data, use cloud posture management (CSPM) tools that alert on public resources."
+    },
+    {
+      "name": "Stealing cloud credentials via instance metadata (SSRF)",
+      "analogy": "Tricking the building's own receptionist into reading out the master key code from the back office.",
+      "how": [
+        "Cloud servers can ask a special internal address (169.254.169.254) for information, including temporary credentials for their IAM role.",
+        "Attacker finds an SSRF flaw (Day 20) that makes the web server fetch URLs on their behalf.",
+        "Attacker makes the server request the metadata service, receiving the role's keys.",
+        "Uses those keys from outside to act with the server's permissions."
+      ],
+      "thinking": "The server is trusted inside the cloud. If I can make it fetch things for me, I can borrow its identity.",
+      "signs": "Role credentials used from IPs outside the cloud environment (AWS GuardDuty has a finding for this), unusual API calls such as listing all buckets, web logs with requests containing internal IPs.",
+      "defend": "Enforce IMDSv2 (requires a session token that simple SSRF cannot obtain), fix SSRF flaws, give each role least privilege, monitor CloudTrail."
+    }
+  ],
+  "story": {
+    "title": "Capital One breach (2019)",
+    "body": "A former cloud engineer exploited a misconfigured web application firewall running on AWS at Capital One. Using a server-side request forgery (SSRF) flaw, the attacker made the server query the cloud metadata service and obtained temporary credentials for its IAM role. That role had broad permission to list and read S3 buckets, so the attacker downloaded data on about 100 million US and 6 million Canadian customers. Capital One was fined $80 million by US regulators. Lesson: SSRF plus an over-permissive IAM role turned a single bug into a mass breach. Least privilege would have limited the blast radius."
+  },
+  "lab": {
+    "title": "Harden a container and scan an image",
+    "goal": "See what a container can do by default, run it with fewer powers, and find known vulnerabilities in an old image.",
+    "steps": [
+      "Install Docker and Trivy on your Kali machine.",
+      "Run a container and notice that you are root inside it by default.",
+      "Run the same container with no capabilities, a read-only filesystem and a normal user, and compare.",
+      "Scan an old, outdated image with Trivy and look at the list of CVEs.",
+      "Read the image history to see how secrets could hide in image layers."
+    ],
+    "commands": [
+      {
+        "cmd": "sudo apt update && sudo apt install -y docker.io trivy",
+        "explain": "Installs Docker (`docker.io` is the Debian/Kali package name) and Trivy, an open-source vulnerability and secret scanner for images."
+      },
+      {
+        "cmd": "sudo docker run --rm alpine:3.20 id",
+        "explain": "Starts a tiny Alpine Linux container, runs `id` and deletes the container (`--rm`). You will see `uid=0(root)`: containers run as root unless told otherwise."
+      },
+      {
+        "cmd": "sudo docker run --rm --user 1000:1000 --cap-drop ALL --read-only --security-opt no-new-privileges alpine:3.20 sh -c 'id; touch /test'",
+        "explain": "Same container, hardened: runs as a normal user, drops all Linux capabilities (special root powers), makes the filesystem read-only and blocks gaining privileges. The `touch` command will now fail."
+      },
+      {
+        "cmd": "sudo trivy image alpine:3.10",
+        "explain": "Downloads an old Alpine image and lists known CVEs in its packages, with severity. This is how teams catch outdated software before shipping."
+      },
+      {
+        "cmd": "sudo docker image history --no-trunc alpine:3.10",
+        "explain": "Shows every build step (layer) of the image. If a developer ever put a password in a build command or file, it can stay visible in a layer even after being 'deleted' later."
+      }
+    ],
+    "safety": "Run Docker only on your own Kali machine or VM. Never test other people's cloud buckets or accounts; use free deliberately vulnerable labs such as flaws.cloud, or your own free-tier cloud account, and delete what you create."
+  },
+  "hunt": "A startup's Dockerfile contains:\n`FROM ubuntu:18.04`\n`COPY . /app`\n`ENV AWS_SECRET_ACCESS_KEY=wJalr...`\n`RUN chmod 777 /app`\nIt is deployed with `docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock app`. What is wrong?\n\nAnswer: (1) Ubuntu 18.04 is end-of-life, so packages carry unpatched CVEs. (2) The AWS secret is baked into the image; anyone who pulls it can read it with `docker inspect`. (3) `COPY .` may include `.git` or `.env` files. (4) `chmod 777` lets anyone modify the app. (5) `--privileged` plus the Docker socket mount means anyone who compromises the app can control the host. Fix: supported base image, secrets manager, `.dockerignore`, non-root user, no privileged mode or socket mount.",
+  "terms": [
+    {
+      "term": "Shared responsibility model",
+      "def": "The split of security duties: the provider secures the cloud's infrastructure, the customer secures their data, identities and configuration.",
+      "use": "\"Under shared responsibility, the open bucket is our problem, not AWS's.\""
+    },
+    {
+      "term": "IAM",
+      "def": "Identity and Access Management: the rules for who or what can perform which actions on which resources.",
+      "use": "\"That Lambda's IAM role has s3:* on every bucket; we need to scope it down.\""
+    },
+    {
+      "term": "Misconfiguration",
+      "def": "A security weakness caused by a wrong setting rather than a bug in the software.",
+      "use": "\"It wasn't a zero-day, just a misconfiguration that made the database public.\""
+    },
+    {
+      "term": "Blast radius",
+      "def": "How much damage can spread if one component or credential is compromised.",
+      "use": "\"Separate accounts per environment reduce the blast radius of a leaked dev key.\""
+    },
+    {
+      "term": "Container escape",
+      "def": "Breaking out of a container's isolation to gain control of the host machine.",
+      "use": "\"Running privileged with the Docker socket mounted makes a container escape trivial.\""
+    },
+    {
+      "term": "Secrets management",
+      "def": "Storing, controlling and rotating passwords and keys in a dedicated secure system instead of in code.",
+      "use": "\"Move those keys into the secrets manager and rotate the ones that were in Git.\""
+    },
+    {
+      "term": "IMDS",
+      "def": "Instance Metadata Service: an internal address cloud servers query for info and temporary credentials.",
+      "use": "\"Enforce IMDSv2 so an SSRF can't simply pull role credentials.\""
+    }
+  ],
+  "quiz": [
+    {
+      "q": "Under the shared responsibility model, who is responsible for an S3 bucket accidentally set to public?",
+      "options": [
+        "The cloud provider",
+        "The internet service provider",
+        "The customer",
+        "Nobody, it's a known risk"
+      ],
+      "answer": 2,
+      "why": "Configuration of your resources and data is the customer's side of the line."
+    },
+    {
+      "q": "Why are containers less isolated than virtual machines?",
+      "options": [
+        "Containers share the host's kernel",
+        "Containers have no filesystem",
+        "Containers cannot use networking",
+        "Containers always run as a normal user"
+      ],
+      "answer": 0,
+      "why": "VMs each have their own kernel; containers share one, so a kernel-level weakness or misconfiguration can cross the boundary."
+    },
+    {
+      "q": "A developer pushed an AWS key to a public GitHub repo and deleted it 5 minutes later. What should happen?",
+      "options": [
+        "Nothing, it was only 5 minutes",
+        "Make the repo private",
+        "Rewrite Git history only",
+        "Revoke and rotate the key immediately and check CloudTrail for misuse"
+      ],
+      "answer": 3,
+      "why": "Bots scan GitHub in near real time; assume the key was copied. Deleting it doesn't un-leak it."
+    },
+    {
+      "q": "In the Capital One breach, what turned an SSRF bug into a huge data theft?",
+      "options": [
+        "Weak encryption on S3",
+        "An over-permissive IAM role reachable through the metadata service",
+        "A phishing email",
+        "A zero-day in AWS"
+      ],
+      "answer": 1,
+      "why": "The SSRF exposed role credentials, and that role could read many buckets. Least privilege would have limited it."
+    }
+  ],
+  "talk": {
+    "scenario": "A product manager says: 'We moved to AWS, so security is Amazon's job now, right?'",
+    "model": "Partly. Under the shared responsibility model, AWS secures the physical data centres and core infrastructure, but we own our configuration, data, IAM permissions and code. Most cloud breaches, like Capital One's, come from customer-side misconfigurations and over-permissive roles, not from AWS being hacked. So we still need least-privilege IAM, Block Public Access on storage, secrets in a secrets manager, and logging through CloudTrail."
+  },
+  "reflect": "Where in your own life or projects might a 'key taped to the door' exist, such as a password in a script or a shared folder set to 'anyone with the link'?"
+}

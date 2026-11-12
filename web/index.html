@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="30 days to think, speak and act like a security professional.">
+  <title>Cyber30</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/today" class="brand"><img src="icon.svg" alt="" width="26" height="26"> Cyber<span>30</span></a>
+    <div class="top-stats">
+      <span class="chip" id="streakChip" title="Day streak">🔥 0</span>
+      <span class="chip" id="xpChip" title="Experience points">⚡ 0</span>
+      <span class="sync-dot" id="syncDot" title="Sync status"></span>
+    </div>
+  </header>
+
+  <main id="view" tabindex="-1"></main>
+
+  <nav class="tabs" aria-label="Main">
+    <a href="#/today" data-tab="today"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg><span>Today</span></a>
+    <a href="#/path" data-tab="path"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4v16M5 6h10l-2 3 2 3H5"/><circle cx="18" cy="18" r="2"/></svg><span>Path</span></a>
+    <a href="#/cards" data-tab="cards"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v11"/></svg><span>Recall</span></a>
+    <a href="#/threats" data-tab="threats"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17.5v.5"/></svg><span>Threats</span></a>
+    <a href="#/me" data-tab="me"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>Me</span></a>
+  </nav>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

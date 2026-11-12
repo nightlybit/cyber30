@@ -1,0 +1,179 @@
+{
+  "day": 11,
+  "week": 2,
+  "title": "Speaking Vulnerability: CVE, CVSS & Exploits",
+  "theme": "Vulnerability Management",
+  "minutes": 50,
+  "mindset": "Most breaches use old, known bugs; the attacker's question is not 'what is new?' but 'what have they not patched yet?'",
+  "cards": [
+    {
+      "title": "Vulnerability, exploit, payload",
+      "body": "A **vulnerability** is a weakness: a bug or misconfiguration that lets someone do what they should not. An **exploit** is the code or technique that takes advantage of it. The **payload** is what runs after the exploit succeeds, such as opening a remote shell.\n\nAnalogy: a faulty window latch is the vulnerability. Knowing to lift and jiggle it is the exploit. What the burglar does once inside (steal the TV) is the payload. Pros keep these three words separate when they talk."
+    },
+    {
+      "title": "CVE: the bug's ID number",
+      "body": "**CVE** (Common Vulnerabilities and Exposures) gives each publicly known vulnerability a unique ID, like `CVE-2021-44228` (Log4Shell): the year it was assigned, then a number. The program is run by MITRE with funding from the US government, and many organisations can assign IDs.\n\nThink of it like a car recall number. Instead of saying 'that logging bug from December', everyone, from vendors and scanners to news and defenders, uses the same ID. When you read a scan report, CVE IDs are how you look things up."
+    },
+    {
+      "title": "CWE: the type of mistake",
+      "body": "A CVE is one specific bug in one product. A **CWE** (Common Weakness Enumeration) is the *category* of mistake, e.g. `CWE-89` SQL injection, `CWE-79` cross-site scripting, `CWE-787` out-of-bounds write.\n\nAnalogy: a CVE is 'this particular car's brakes failed'; the CWE is 'brake design flaw'. Developers learn from CWEs because fixing a category prevents many future CVEs. Attackers think in CWEs too: 'this app builds database queries from user input; maybe it has CWE-89.'"
+    },
+    {
+      "title": "CVSS: how bad is it?",
+      "body": "**CVSS** (Common Vulnerability Scoring System) rates severity from 0.0 to 10.0: Low (0.1-3.9), Medium (4.0-6.9), High (7.0-8.9), Critical (9.0-10.0). It considers things like: can it be attacked over the network? Does it need a login? Does the victim need to click? What is the impact on confidentiality, integrity and availability?\n\nIt is like a hospital triage score. But a score measures the *bug*, not *your* risk. A 9.8 on a server that is switched off matters less than a 7.5 on your internet-facing login page."
+    },
+    {
+      "title": "CISA KEV: bugs being used right now",
+      "body": "Thousands of CVEs are published each year; no one can patch them all at once. The US agency CISA publishes the **Known Exploited Vulnerabilities (KEV) catalog**: CVEs with evidence of *real attackers* using them in the wild.\n\nThink of a weather service: CVSS says how strong a storm could be; KEV says 'this storm is hitting your town today.' Smart teams patch KEV entries first. Related idea: **EPSS** estimates the probability a CVE will be exploited soon. Attackers love KEV-style bugs because working exploits already exist."
+    },
+    {
+      "title": "Zero-day vs n-day",
+      "body": "A **zero-day** is a vulnerability the vendor does not know about, or has had 'zero days' to fix, so no patch exists. They are rare and valuable, and used in targeted attacks.\n\nAn **n-day** is already public, with a patch available, but the victim has not applied it yet. Most real breaches use n-days. Analogy: a zero-day is a secret lock-picking technique nobody knows; an n-day is a recall notice for your lock that you never read. Attackers go for the cheap option first."
+    },
+    {
+      "title": "Exploit-DB and searchsploit",
+      "body": "**Exploit-DB** (exploit-db.com, run by OffSec) is a public archive of exploits and proof-of-concept code. Kali includes an offline copy, searched with **searchsploit**.\n\nThe attacker's workflow: Nmap says `vsftpd 2.3.4` (Day 9-10), searchsploit finds matching exploits, then they read the code before running it. **Always read exploit code first**: public exploits can be buggy, need tweaking, crash the target, or occasionally be booby-trapped. Version matching is a lead to verify, not a guaranteed win."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "N-day exploitation of unpatched systems",
+      "analogy": "A car recall notice says 'model X doors open with any key'. A thief simply walks the car park looking for model X cars whose owners ignored the letter.",
+      "how": [
+        "A vendor releases a patch and a CVE is published. Researchers often post analysis and proof-of-concept code within days.",
+        "Attackers compare the patched and unpatched versions, or grab public exploits.",
+        "They scan the internet (or use Shodan) for systems still running the vulnerable version.",
+        "They exploit them at scale, often within hours or days of disclosure."
+      ],
+      "thinking": "Patching is slow in big organisations. The window between 'patch released' and 'patch applied' is my opportunity.",
+      "signs": "Vulnerability scanners flagging the CVE, IDS signatures for the exploit, unusual processes spawned by the vulnerable service (e.g. a web server launching a shell), new outbound connections.",
+      "defend": "Keep an asset inventory, run regular vulnerability scans, prioritise patches by CISA KEV and internet exposure (not just CVSS), use virtual patching (WAF/IPS rules) when you cannot patch immediately, and monitor for exploitation."
+    },
+    {
+      "name": "Zero-day exploitation",
+      "analogy": "A master thief who has privately discovered a flaw in a popular safe brand; no one, including the manufacturer, knows to fix it.",
+      "how": [
+        "A well-resourced attacker discovers (or buys) an unknown vulnerability.",
+        "They develop a reliable exploit and use it quietly against chosen targets.",
+        "Defenders have no patch and often no signature to detect it.",
+        "Once discovered, the vendor rushes a fix, and the zero-day becomes an n-day that criminals then mass-exploit."
+      ],
+      "thinking": "Where does the target's defence rely only on patching? A bug no one knows about walks straight past that.",
+      "signs": "Behaviour-based detections: unusual child processes, unexpected outbound traffic, new admin accounts, files appearing in web folders. Not signature matches.",
+      "defend": "Defense in depth, least privilege, network segmentation, behaviour-based monitoring (EDR), reducing attack surface, and fast emergency patching processes once a fix ships."
+    }
+  ],
+  "story": {
+    "title": "Equifax breach via Apache Struts (2017)",
+    "body": "On 7 March 2017, Apache disclosed and patched **CVE-2017-5638**, a critical flaw in the Apache Struts web framework (CVSS 10.0) that let attackers run commands via a crafted `Content-Type` header. Public exploits appeared almost immediately. Equifax had a vulnerable Struts application in its online dispute portal and did not patch it. From mid-May 2017, attackers exploited it and stayed inside for about 76 days, taking personal data of roughly 147 million people. **Lesson:** this was an n-day, not a zero-day. Knowing your assets, scanning for known CVEs and patching critical, internet-facing systems quickly is the defence."
+  },
+  "lab": {
+    "title": "From version string to known exploit",
+    "goal": "Take service versions found on Metasploitable 2, look up matching vulnerabilities and exploits with Nmap's vulners script and searchsploit, and read an exploit safely.",
+    "steps": [
+      "Make sure the local Exploit-DB copy is installed and up to date.",
+      "Search for the vsftpd version you found on Day 10.",
+      "Show the online links for those results so you can read the descriptions in a browser.",
+      "Copy one exploit into your working folder and read it in a text editor. Do NOT run it yet. Find where it connects and what it sends.",
+      "Run Nmap's vulners script against Metasploitable 2 to list CVEs matching detected versions, then look one up on nvd.nist.gov and check whether it is in the CISA KEV catalog."
+    ],
+    "commands": [
+      {
+        "cmd": "sudo apt update && sudo apt install exploitdb",
+        "explain": "Installs or updates Kali's offline copy of Exploit-DB, which provides the `searchsploit` command."
+      },
+      {
+        "cmd": "searchsploit vsftpd 2.3.4",
+        "explain": "Searches the local Exploit-DB for entries matching all the words. Results show a title and a file path."
+      },
+      {
+        "cmd": "searchsploit -w vsftpd 2.3.4",
+        "explain": "`-w` shows the exploit-db.com web link for each result instead of the local path, so you can read details online."
+      },
+      {
+        "cmd": "searchsploit -m unix/remote/49757.py",
+        "explain": "`-m` (mirror) copies the exploit file into your current folder so you can read or edit it without touching the original. Use the path shown in your own search results."
+      },
+      {
+        "cmd": "nmap -sV --script vulners -p 21,22,80,139,445 192.168.56.101",
+        "explain": "`-sV` detects versions; `--script vulners` (bundled with Nmap) matches those versions to known CVEs and their CVSS scores. Change the IP to your Metasploitable VM."
+      }
+    ],
+    "safety": "Only look up and test exploits against your own Metasploitable 2 VM on an isolated host-only network. Never run downloaded exploit code you have not read, and never point exploits at systems you do not own or have written permission to test."
+  },
+  "hunt": "Your vulnerability scanner reports two issues. Server A: an internal HR test server, switched on only once a month, with a CVSS 9.8 bug. Server B: the public customer login portal, with a CVSS 7.5 bug that appears in the CISA KEV catalog. You can patch one tonight. Which one, and why?\n\nAnswer: Server B. It is exposed to the internet and the bug is *known to be exploited in the wild*, so real attackers are actively scanning for it. Server A's bug is more severe on paper, but it is internal and rarely running, so its real-world risk is lower. CVSS measures bug severity; risk also depends on exposure, exploitation activity and asset value. Patch B tonight, A next.",
+  "terms": [
+    {
+      "term": "CVE",
+      "def": "A unique public ID for a specific known vulnerability, like CVE-2021-44228.",
+      "use": "Is that box vulnerable to CVE-2017-5638? It's still running an old Struts version."
+    },
+    {
+      "term": "CWE",
+      "def": "A category of software weakness, such as CWE-89 for SQL injection, used to describe the type of mistake.",
+      "use": "Root cause is CWE-89, so let's review every other query in that codebase too."
+    },
+    {
+      "term": "CVSS",
+      "def": "A 0-10 score describing how severe a vulnerability is, based on how it can be attacked and what it impacts.",
+      "use": "It's a CVSS 9.8: unauthenticated, network-reachable remote code execution."
+    },
+    {
+      "term": "KEV",
+      "def": "CISA's Known Exploited Vulnerabilities catalog: CVEs with evidence of active exploitation in the wild.",
+      "use": "It's on the KEV list, so it jumps to the top of the patch queue."
+    },
+    {
+      "term": "Zero-day",
+      "def": "A vulnerability unknown to the vendor, or with no patch yet available.",
+      "use": "It was a zero-day when the group used it, but now there's a patch, so it's an n-day."
+    },
+    {
+      "term": "N-day",
+      "def": "A publicly known vulnerability with a patch available that a system has not yet applied.",
+      "use": "Most of what we find on internal tests are n-days from missed patch cycles."
+    },
+    {
+      "term": "Proof of concept (PoC)",
+      "def": "Minimal code showing that a vulnerability can really be exploited, often published by researchers.",
+      "use": "A public PoC dropped yesterday, so expect mass scanning within days."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "What is the difference between a CVE and a CWE?",
+      "options": ["They are the same", "CVE is a score, CWE is an ID", "CVE is a specific bug in a product; CWE is the category of mistake", "CWE is only for Windows"],
+      "answer": 2,
+      "why": "A CVE identifies one specific vulnerability; a CWE names the general type of weakness behind many CVEs."
+    },
+    {
+      "q": "A vulnerability has a CVSS score of 9.1. What severity band is that?",
+      "options": ["Medium", "High", "Low", "Critical"],
+      "answer": 3,
+      "why": "9.0-10.0 is Critical in CVSS v3. High is 7.0-8.9."
+    },
+    {
+      "q": "What makes CISA's KEV catalog especially useful for prioritising patches?",
+      "options": ["It lists vulnerabilities with evidence of real-world exploitation", "It only includes zero-days", "It gives every bug a 10.0 score", "It replaces CVE IDs"],
+      "answer": 0,
+      "why": "KEV focuses on what attackers are actually using now, which is the most urgent risk."
+    },
+    {
+      "q": "The Equifax 2017 breach used CVE-2017-5638, which had been patched two months earlier. That makes it a...",
+      "options": ["Zero-day", "N-day", "Social engineering attack", "Denial of service"],
+      "answer": 1,
+      "why": "A patch existed but was not applied, which is the definition of an n-day."
+    },
+    {
+      "q": "What should you always do before running an exploit from searchsploit?",
+      "options": ["Run it as root immediately", "Rename it", "Read and understand the code", "Upload it to VirusTotal only"],
+      "answer": 2,
+      "why": "Public exploits may be buggy, destructive, need modification, or contain malicious surprises. Read first."
+    }
+  ],
+  "talk": {
+    "scenario": "Your manager asks: 'The scanner found 400 vulnerabilities. Where do we even start?'",
+    "model": "I wouldn't go purely by CVSS score. I'd start with anything on CISA's KEV catalog, because those are being actively exploited, especially on internet-facing systems. Next, critical and high CVEs on exposed or business-critical assets, then the rest by risk. Most breaches come from n-days, not zero-days, so closing the known, exploited gaps fast gives us the biggest risk reduction for the effort."
+  },
+  "reflect": "In your own words, explain why a CVSS 10.0 vulnerability might be lower priority than a 7.5 one. What extra information does a defender need beyond the score?"
+}

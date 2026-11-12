@@ -1,0 +1,134 @@
+{
+  "day": 4,
+  "week": 1,
+  "title": "Addresses, Doors and Handshakes",
+  "theme": "Networking",
+  "minutes": 55,
+  "mindset": "Every open port is a door someone deliberately left open; the attacker's first job is to count the doors and ask who answers each one.",
+  "cards": [
+    {
+      "title": "IP addresses: the street address",
+      "body": "Every device on a network has an **IP address**, like a postal address, so data knows where to go. IPv4 looks like `192.168.1.25`: four numbers from 0 to 255.\n\n**Private** ranges such as `192.168.x.x`, `10.x.x.x` and `172.16-31.x.x` are used inside homes and offices, like flat numbers inside a building. Your router has one **public** IP facing the internet and translates between them (called **NAT**). IPv6 addresses are longer, like `2001:db8::1`, because the world ran out of IPv4 addresses. `127.0.0.1` always means 'this machine itself'."
+    },
+    {
+      "title": "MAC addresses: the name on the door",
+      "body": "A **MAC address** like `08:00:27:3a:1b:9c` is burned into each network card by the manufacturer. IP addresses get you to the right *street*; MAC addresses get you to the right *door* on your local network.\n\nDevices on the same network use **ARP** (Address Resolution Protocol) to ask, 'Who has 192.168.1.1? Tell me your MAC.' Whoever answers is trusted, without proof.\n\nThat blind trust is exactly what attackers abuse in ARP spoofing (Day 13): they shout 'I am the router!' and traffic flows through them."
+    },
+    {
+      "title": "Ports: doors on a building",
+      "body": "One computer runs many services at once. **Ports** (numbered 0 to 65535) tell incoming data which service it is for, like flat numbers in an apartment block with one street address.\n\nWell-known ports: **22** SSH (remote shell), **80** HTTP (web), **443** HTTPS (secure web), **53** DNS, **21** FTP, **25** SMTP (email), **445** SMB (Windows file sharing), **3389** RDP (Windows remote desktop).\n\nAn **open** port means some program is listening. Attackers scan ports first, because every listening program is a potential way in."
+    },
+    {
+      "title": "TCP vs UDP",
+      "body": "Two main ways to send data:\n\n- **TCP** is like a registered parcel: set up a connection first, number every piece, confirm delivery, resend anything lost. Reliable but slower. Used for web, email, SSH.\n- **UDP** is like dropping postcards in a box: just send, no confirmation, no order guarantee. Fast and light. Used for DNS lookups, video calls, games.\n\nFor attackers, UDP services are often forgotten during scans (they are slower to check), so they can hide interesting things like SNMP on port 161."
+    },
+    {
+      "title": "The TCP 3-way handshake",
+      "body": "Before TCP sends any data, both sides agree to talk, like a phone call:\n\n1. **SYN**: 'Hello, can we talk?' (client to server)\n2. **SYN-ACK**: 'Yes, I hear you, can you hear me?' (server back)\n3. **ACK**: 'Yes, let's go.' (client)\n\nIf a port is closed, the server replies **RST** (reset), like 'wrong number'. If a firewall silently drops it, there is no reply at all.\n\nThose different reactions are exactly how port scanners like nmap decide whether a door is open, closed or **filtered**."
+    },
+    {
+      "title": "Layers: the OSI and TCP/IP models",
+      "body": "Networking is split into **layers**, like sending a letter: you write it, put it in an envelope, the post office adds a sorting label, a van physically carries it.\n\nThe simple **TCP/IP model** has four layers:\n- **Application**: the message itself (HTTP, DNS, SSH).\n- **Transport**: which door, reliable or not (TCP/UDP, ports).\n- **Internet**: which address (IP).\n- **Link**: the physical hop on the local network (Ethernet, Wi-Fi, MAC).\n\nThe older **OSI model** splits the same idea into 7 layers. Pros say 'layer 2 attack' (MAC/ARP) or 'layer 7' (application) all the time."
+    },
+    {
+      "title": "Firewalls: the doorman",
+      "body": "A **firewall** decides which traffic may pass, based on rules like 'allow port 443 from anyone, allow port 22 only from the office'. Think of a doorman with a guest list.\n\nFirewalls are essential but not magic. They usually allow web traffic through, so a bug in the website still gets reached. And once an attacker is *inside* the network, many internal networks are **flat**, meaning every machine can talk to every other. Attackers think: 'Which doors does the doorman allow, and what is behind them?'"
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Port scanning",
+      "analogy": "A burglar walking down a street, gently trying every door and window to see which ones open, without going in yet.",
+      "how": [
+        "The attacker sends a SYN packet to many ports on a target.",
+        "SYN-ACK back means open, RST means closed, silence means filtered by a firewall.",
+        "For open ports, they ask the service what software and version it is, then look for known weaknesses."
+      ],
+      "thinking": "I can't attack what I can't see. Which services did the owner expose, and is any of them old, forgotten or meant to be internal only?",
+      "signs": "Firewall or IDS logs showing one source touching many ports in a short time, many half-open connections, alerts like 'nmap scan detected'.",
+      "defend": "Close or firewall every port that is not needed, keep exposed services patched, restrict admin ports (SSH, RDP) to VPN or known IPs, and monitor for scans."
+    },
+    {
+      "name": "SYN flood (denial of service)",
+      "analogy": "Prank-calling a restaurant hundreds of times, saying 'Can I book a table?' and hanging up before giving a name, until the phone line is jammed for real customers.",
+      "how": [
+        "The attacker sends huge numbers of SYN packets, often with fake source addresses.",
+        "The server replies SYN-ACK to each and holds memory open waiting for the final ACK, which never comes.",
+        "Its queue of half-open connections fills up, and real users cannot connect."
+      ],
+      "thinking": "The handshake makes the server do work and remember me before I prove anything. If I make it remember enough strangers, it forgets real customers.",
+      "signs": "Sudden spike in SYN_RECV connections (`ss -s`), lots of SYNs with no completed handshakes, slow or failed connections for real users.",
+      "defend": "Enable SYN cookies (on by default in modern Linux), use rate limiting, and put large services behind DDoS-protection providers or load balancers."
+    }
+  ],
+  "story": {
+    "title": "WannaCry ransomware (2017)",
+    "body": "In May 2017 **WannaCry** ransomware infected more than 200,000 computers in 150 countries, including many in the UK's National Health Service, cancelling appointments. It spread like a worm over **TCP port 445** (SMB, Windows file sharing) using **EternalBlue**, an exploit leaked from the NSA. Microsoft had patched the flaw (MS17-010) two months earlier. Machines that were unpatched *and* had port 445 reachable were hit with no clicks needed. **Lesson:** an exposed port plus a missing patch equals automatic compromise. Closing unnecessary ports and segmenting networks limits how far a worm can travel."
+  },
+  "lab": {
+    "title": "Watch addresses, ports and a handshake",
+    "goal": "Find your IP and MAC, see which ports your machine has open, and create your own TCP connection with netcat.",
+    "steps": [
+      "Find your IP address, MAC address and your router (default gateway).",
+      "List the ports your Kali machine is listening on and which program owns each.",
+      "Open two terminal windows. In the first, start a netcat listener; in the second, connect to it and type messages. You just did a full TCP handshake.",
+      "Do one light, polite scan of two ports on scanme.nmap.org, a host the Nmap project provides for practice."
+    ],
+    "commands": [
+      { "cmd": "ip a", "explain": "Shows interfaces. `inet` is your IPv4 address, `link/ether` is your MAC address." },
+      { "cmd": "ip route", "explain": "Shows routing. The `default via` address is your router, the door to the internet." },
+      { "cmd": "sudo ss -tulpn", "explain": "Socket statistics: `-t` TCP, `-u` UDP, `-l` listening, `-p` owning process, `-n` numbers instead of names." },
+      { "cmd": "nc -lvnp 4444", "explain": "Terminal 1: netcat listens (`-l`) verbosely (`-v`) with no DNS lookups (`-n`) on port (`-p`) 4444." },
+      { "cmd": "nc -v 127.0.0.1 4444", "explain": "Terminal 2: connects to your own listener. Type text and it appears in the other window. Ctrl+C to stop." },
+      { "cmd": "nmap -p 22,80 scanme.nmap.org", "explain": "Checks only ports 22 and 80 on the Nmap project's official practice host and reports open, closed or filtered." }
+    ],
+    "safety": "netcat runs only on your own machine (127.0.0.1). scanme.nmap.org explicitly permits light scans; do not hammer it or scan any other host you do not own."
+  },
+  "hunt": "A small company puts its office file server directly on the internet so staff can reach files from home. A quick scan shows ports 445 (SMB) and 3389 (RDP) open to the whole world. The server last had updates in 2016. What is wrong?\n\nAnswer: Both SMB and RDP are high-value targets that should never face the open internet. SMB on an unpatched 2016 server is exactly what WannaCry (EternalBlue) hit, and exposed RDP is a top entry point for ransomware gangs through password guessing and known bugs. Fix: patch, close both ports to the internet, and give staff a VPN so the services are only reachable from inside.",
+  "terms": [
+    { "term": "IP address", "def": "A device's network address, used to route data to it, like a postal address.", "use": "The attack came from a single IP, so we blocked it at the firewall, but they'll just rotate." },
+    { "term": "Port", "def": "A numbered door on a computer that leads to a specific service.", "use": "Why is port 3389 open to the internet? RDP should be behind the VPN." },
+    { "term": "TCP handshake", "def": "The SYN, SYN-ACK, ACK exchange that opens a reliable TCP connection.", "use": "The scan never completes the handshake, so some apps never log it." },
+    { "term": "Attack surface", "def": "All the points where an attacker could try to get in, such as open ports, apps and users.", "use": "Shutting down those legacy services cut our external attack surface in half." },
+    { "term": "Firewall", "def": "A gatekeeper that allows or blocks network traffic based on rules.", "use": "The firewall rule is too broad; it allows any source on 22 instead of just the office range." },
+    { "term": "Network segmentation", "def": "Splitting a network into separate zones so a break-in in one area cannot easily reach others.", "use": "Proper segmentation would have kept the worm off the hospital's imaging systems." },
+    { "term": "DoS / DDoS", "def": "Denial of Service: overwhelming a system so real users cannot use it. Distributed means many attacking machines at once.", "use": "It wasn't a breach, it was a DDoS; availability only, no data left the building." }
+  ],
+  "quiz": [
+    {
+      "q": "A scanner sends SYN to a port and gets back RST. What does that mean?",
+      "options": ["Port is open", "Port is filtered", "Port is closed", "The host is down"],
+      "answer": 2,
+      "why": "RST is the server saying 'nothing is listening here'. Open replies SYN-ACK; filtered usually gives no reply."
+    },
+    {
+      "q": "Which protocol is like sending postcards: fast, no confirmation of delivery?",
+      "options": ["UDP", "TCP", "ARP", "SSH"],
+      "answer": 0,
+      "why": "UDP sends without a handshake or delivery guarantee, which suits DNS, streaming and games."
+    },
+    {
+      "q": "Which port is used by SMB, the service WannaCry spread through?",
+      "options": ["22", "80", "443", "445"],
+      "answer": 3,
+      "why": "SMB (Windows file sharing) uses TCP 445, which should never be exposed to the internet."
+    },
+    {
+      "q": "What does ARP do on a local network?",
+      "options": ["Encrypts traffic", "Finds the MAC address that belongs to an IP address", "Assigns ports", "Blocks attackers"],
+      "answer": 1,
+      "why": "ARP asks 'who has this IP?' and trusts whoever answers, which is why it can be spoofed."
+    },
+    {
+      "q": "Why do attackers scan ports before anything else?",
+      "options": ["To find listening services they could attack", "To speed up the network", "To get passwords directly", "Because it is required by law"],
+      "answer": 0,
+      "why": "Each open port is a running program that might be vulnerable. You cannot attack services you have not discovered."
+    }
+  ],
+  "talk": {
+    "scenario": "A non-technical manager asks: 'Our firewall is on, so we're safe from the internet, right?'",
+    "model": "The firewall reduces our attack surface, but it deliberately lets some traffic through, like web on port 443, so whatever sits behind those open ports is still reachable. If that web app or server has a vulnerability, the firewall won't stop it. Also, once someone is inside, a flat network lets them move freely. So we pair the firewall with patching, closing unused ports and segmentation."
+  },
+  "reflect": "Your home router has a public IP. Which devices in your home might be listening on ports, and which of those would you NOT want reachable from the internet?"
+}

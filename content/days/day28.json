@@ -1,0 +1,190 @@
+{
+  "day": 28,
+  "week": 5,
+  "title": "Finding What Nobody Has Found: Zero-Days & Bug Hunting",
+  "theme": "Vulnerability Research",
+  "minutes": 50,
+  "mindset": "Every program carries assumptions about its input; a researcher's job is to find the one the developer never imagined.",
+  "cards": [
+    {
+      "title": "Zero-day vs n-day, again",
+      "body": "A **zero-day** is a vulnerability the vendor does not know about yet, so defenders have had 'zero days' to fix it. Once a patch is out, it becomes an **n-day**: known and fixable, but only on systems that actually install the patch. Most real breaches use n-days, because patching is slow. Think of a lock flaw: a zero-day is one only the burglar knows; an n-day was in the newspaper, but half the street hasn't changed their locks yet."
+    },
+    {
+      "title": "What vulnerability research is",
+      "body": "**Vulnerability research** is the craft of finding new security bugs in software. Researchers read source code, reverse-engineer programs (study compiled code to understand it), and test inputs the developer did not expect. It is like a building inspector who tries every window, crawls into the vents and reads the blueprints, asking 'what if?'. The core question is always: **where does untrusted input enter, and what does the program assume about it?** Parsers of files, images and network protocols are favourite targets."
+    },
+    {
+      "title": "Fuzzing: automated 'what if?'",
+      "body": "**Fuzzing** feeds a program huge numbers of automatically mutated inputs and watches for crashes. A crash often means memory was handled wrongly, which can be a security bug. Modern fuzzers like **AFL++** and **libFuzzer** are **coverage-guided**: they notice which inputs reach new parts of the code and mutate those further. Imagine a robot pressing every button combination on a vending machine, remembering which ones made new noises, until one makes it spit out free snacks."
+    },
+    {
+      "title": "Sanitizers: making bugs loud",
+      "body": "Many memory bugs do not crash immediately; they silently corrupt data. **Sanitizers** are compiler add-ons that make such bugs crash loudly with a clear report. **AddressSanitizer (ASan)**, turned on with `-fsanitize=address` in gcc or clang, catches reading or writing outside a buffer and using memory after it was freed. It is like adding dye to water pipes so a tiny leak becomes an obvious stain. Fuzzing plus sanitizers is the standard combination."
+    },
+    {
+      "title": "Patch diffing: reading the fix to find the flaw",
+      "body": "When a vendor releases a security patch, attackers compare the old and new versions. This is **patch diffing**. Whatever changed around the fix points straight at the bug, so they can build an exploit for unpatched systems, sometimes within hours or days. It is like seeing a shop suddenly add bars to one particular window: now every thief knows which window was weak. This is why 'Patch Tuesday' is often followed by fast exploitation, and why patching speed matters."
+    },
+    {
+      "title": "Responsible (coordinated) disclosure",
+      "body": "Found a bug? **Coordinated disclosure** means privately reporting it to the vendor, giving them time to fix it (commonly **90 days**, as popularised by Google Project Zero), then publishing details after the patch. Look for a `security.txt` file, a security email, or a bug bounty page. Do not access more data than needed to prove the issue, and never demand payment as a condition. That is extortion. A **CVE** ID can be requested through the vendor or a CNA (CVE Numbering Authority)."
+    },
+    {
+      "title": "Bug bounty methodology",
+      "body": "A **bug bounty** is a programme where companies pay for valid vulnerability reports, run on platforms like HackerOne, Bugcrowd and Intigriti. The method:\n1. **Read the scope and rules** first; out-of-scope testing is unauthorised.\n2. **Recon**: map subdomains, endpoints and features.\n3. **Understand the app** like a user.\n4. **Test assumptions**: access control, inputs, logic.\n5. **Write a clear report** with steps to reproduce and impact.\nDuplicates are common, so depth on one target often beats shallow testing on many."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "N-day exploitation after patch release",
+      "analogy": "Reading the town notice that says 'the bank's back door lock is faulty and will be replaced next month', then visiting the banks that haven't replaced it yet.",
+      "how": [
+        "Vendor publishes a patch and advisory.",
+        "Attacker diffs the patched and unpatched versions to locate the flaw.",
+        "Builds a working exploit.",
+        "Scans the internet for unpatched systems and exploits them at scale."
+      ],
+      "thinking": "The vendor just told the world where the weakness is. How many organisations will take weeks to patch?",
+      "signs": "Spike in scanning for the affected product right after an advisory, exploit attempts matching new IDS signatures, the CVE added to CISA's KEV catalogue.",
+      "defend": "Asset inventory so you know what you run, prioritise internet-facing and KEV-listed vulnerabilities, patch within days, virtual patching (WAF/IPS rules) while waiting."
+    }
+  ],
+  "story": {
+    "title": "Heartbleed (2014)",
+    "body": "Heartbleed (CVE-2014-0160) was a bug in OpenSSL's 'heartbeat' feature, which lets one side say 'send back these 5 letters' to check the connection is alive. OpenSSL trusted the requested length without checking it, so an attacker could ask for up to 64 KB and receive leftover memory: passwords, session cookies, even private keys. It was found independently by Neel Mehta of Google and by Codenomicon, whose team found it while improving their testing tools. Around two-thirds of web servers used OpenSSL. Lesson: a single missing bounds check in widely shared code affects the whole internet, and systematic testing finds what code review misses."
+  },
+  "lab": {
+    "title": "Fuzz your own buggy program with AFL++",
+    "goal": "Watch a coverage-guided fuzzer discover a hidden crash in a tiny program you write, then compare two versions of code like a patch differ.",
+    "steps": [
+      "Install AFL++ and write a tiny C program that crashes on one secret input (the commands below do this).",
+      "Compile it with AFL++'s compiler so the fuzzer can see code coverage.",
+      "Give the fuzzer a harmless seed input and start fuzzing.",
+      "Within minutes, check the crashes folder and read the input that triggered it.",
+      "Write a fixed version and use `diff` to see what a patch differ would see."
+    ],
+    "commands": [
+      {
+        "cmd": "sudo apt update && sudo apt install -y afl++ gcc",
+        "explain": "Installs AFL++ (the fuzzer, package name `afl++`) and the gcc compiler."
+      },
+      {
+        "cmd": "printf '#include <stdio.h>\\n#include <stdlib.h>\\nint main(){char b[8]={0};fread(b,1,7,stdin);\\nif(b[0]==66) if(b[1]==85) if(b[2]==71) abort();\\nputs(\"ok\");return 0;}\\n' > target.c && cat target.c",
+        "explain": "Writes `target.c`: it reads up to 7 bytes and deliberately crashes (`abort()`) only if the input starts with bytes 66, 85, 71, which are the letters `B`, `U`, `G`. This simulates a hidden bug; each nested `if` is a new branch the fuzzer can discover one letter at a time."
+      },
+      {
+        "cmd": "afl-cc -o target target.c && mkdir -p in && echo hello > in/seed",
+        "explain": "`afl-cc` compiles the program with coverage tracking so the fuzzer knows which branches each input reaches. The `in` folder holds the starting (seed) input."
+      },
+      {
+        "cmd": "AFL_SKIP_CPUFREQ=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 afl-fuzz -i in -o out -- ./target",
+        "explain": "Starts fuzzing: `-i` seed folder, `-o` results folder, after `--` the program to test (input goes to its stdin). The two variables skip system-tuning checks for a quick lab. Press Ctrl+C once 'saved crashes' is above 0."
+      },
+      {
+        "cmd": "xxd out/default/crashes/id:* | head",
+        "explain": "`xxd` shows the crashing input as bytes and text. You should see it begins with `BUG`: the fuzzer found it by itself by following new code paths."
+      },
+      {
+        "cmd": "sed 's/abort();/puts(\"rejected\");/' target.c > fixed.c && diff -u target.c fixed.c",
+        "explain": "Creates a 'patched' version and shows the difference. Patch diffing works the same way: the changed lines reveal exactly where the bug was."
+      }
+    ],
+    "safety": "Fuzz only programs you wrote or have the right to test, on your own machine. Never fuzz or probe live websites or services outside a bug bounty scope that explicitly allows it, and follow the programme's rules on automated testing."
+  },
+  "hunt": "A researcher finds that changing `user_id=1001` to `1002` in a company's app shows another customer's invoice. To 'prove impact', they download 50,000 invoices, then email the company: 'Pay $10,000 or I publish them.' What is wrong?\n\nAnswer: The bug (an IDOR) was real and reportable, but the researcher went far beyond proof: one or two records are enough to demonstrate impact. Mass downloading is unauthorised data access, and demanding payment is extortion, a crime. Correct path: check for a bug bounty or `security.txt`, stop at minimal proof, report privately with clear steps, delete any data accessed, and allow time to fix.",
+  "terms": [
+    {
+      "term": "Zero-day",
+      "def": "A vulnerability unknown to the vendor, so no patch exists yet.",
+      "use": "\"It was exploited as a zero-day before the vendor's emergency patch.\""
+    },
+    {
+      "term": "Fuzzing",
+      "def": "Automatically sending many malformed or random inputs to a program to find crashes and bugs.",
+      "use": "\"We fuzz the file parser in CI so new crashes are caught before release.\""
+    },
+    {
+      "term": "Patch diffing",
+      "def": "Comparing software before and after a security fix to find exactly what was vulnerable.",
+      "use": "\"Expect a public exploit soon; researchers are already patch diffing it.\""
+    },
+    {
+      "term": "Coordinated disclosure",
+      "def": "Privately reporting a vulnerability to the vendor and agreeing on when details are made public.",
+      "use": "\"We followed coordinated disclosure with a 90-day deadline.\""
+    },
+    {
+      "term": "Bug bounty",
+      "def": "A programme where organisations reward people for reporting valid vulnerabilities within a defined scope.",
+      "use": "\"That subdomain is out of scope for the bug bounty, so don't touch it.\""
+    },
+    {
+      "term": "Proof of concept (PoC)",
+      "def": "A minimal demonstration that a vulnerability is real and exploitable.",
+      "use": "\"Attach a PoC request in the report so triage can reproduce it quickly.\""
+    }
+  ],
+  "quiz": [
+    {
+      "q": "What does a 'coverage-guided' fuzzer do?",
+      "options": [
+        "Only sends random bytes forever",
+        "Keeps and mutates inputs that reach new parts of the code",
+        "Reads source code for comments",
+        "Scans networks for open ports"
+      ],
+      "answer": 1,
+      "why": "Tracking code coverage lets the fuzzer explore deeper paths instead of guessing blindly."
+    },
+    {
+      "q": "Why do attackers patch-diff security updates?",
+      "options": [
+        "To install them faster",
+        "To check the vendor's code style",
+        "The changed code reveals the vulnerability, so they can exploit unpatched systems",
+        "To find zero-days in other vendors"
+      ],
+      "answer": 2,
+      "why": "A patch is a map to the bug; unpatched systems become n-day targets."
+    },
+    {
+      "q": "What was the core flaw behind Heartbleed?",
+      "options": [
+        "OpenSSL trusted a length value from the request without checking it",
+        "A weak password on a server",
+        "A phishing email to OpenSSL developers",
+        "An expired TLS certificate"
+      ],
+      "answer": 0,
+      "why": "Missing bounds checking let attackers read up to 64 KB of server memory per request."
+    },
+    {
+      "q": "You find a serious bug on a site with no bug bounty. What is the right first step?",
+      "options": [
+        "Post it on social media",
+        "Exploit it fully to prove impact",
+        "Sell it to the highest bidder",
+        "Stop testing, look for security.txt or a security contact, and report privately"
+      ],
+      "answer": 3,
+      "why": "Coordinated disclosure protects users and you; going further without permission can be illegal."
+    },
+    {
+      "q": "What does AddressSanitizer (-fsanitize=address) help with?",
+      "options": [
+        "Encrypting program memory",
+        "Making silent memory errors crash loudly with a report",
+        "Speeding up programs",
+        "Hiding bugs from attackers"
+      ],
+      "answer": 1,
+      "why": "ASan detects out-of-bounds and use-after-free errors that might otherwise go unnoticed."
+    }
+  ],
+  "talk": {
+    "scenario": "A colleague asks: 'If no one has published an exploit for this new CVE, can we wait until next quarter to patch?'",
+    "model": "I wouldn't wait. Once a patch is public, attackers can patch-diff it and build an exploit within days, which turns this into an n-day that's actively scanned for. If the system is internet-facing or the CVE lands on CISA's KEV list, it should be patched within days, not months. If we truly can't patch, we should add a compensating control like a WAF or IPS rule and watch for exploit attempts."
+  },
+  "reflect": "Think of an app or device you use daily. Where does it take input from strangers, and what assumption might its developers have made about that input?"
+}

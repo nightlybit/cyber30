@@ -1,0 +1,134 @@
+{
+  "day": 6,
+  "week": 1,
+  "title": "Reading Other People's Postcards",
+  "theme": "Traffic Analysis",
+  "minutes": 60,
+  "mindset": "If traffic is not encrypted, assume someone is reading it, because with the right position on the network, anyone can.",
+  "cards": [
+    {
+      "title": "What is a packet?",
+      "body": "Data does not travel as one big lump. It is chopped into small **packets**, like a long letter split across many numbered postcards. Each packet has **headers** (the address side: source and destination IP, ports, sequence numbers) and a **payload** (the message side: the actual data).\n\nA **packet capture** (or **pcap**) is a recording of those postcards as they pass by. Defenders use captures to investigate incidents; attackers use them to harvest secrets. Same skill, different intention."
+    },
+    {
+      "title": "Sniffing: who can see the traffic?",
+      "body": "**Sniffing** means capturing traffic that passes your network card. Normally your card ignores packets not addressed to you; **promiscuous mode** tells it to keep everything it sees.\n\nWhat you actually see depends on position. On a modern switched network you mostly see your own traffic plus broadcasts. On open Wi-Fi, a hub, a compromised router, or after ARP spoofing (Day 13), you can see others' traffic too.\n\nAttackers think about position first: 'Where can I stand so that the postcards pass through my hands?'"
+    },
+    {
+      "title": "tcpdump: the command-line recorder",
+      "body": "**tcpdump** captures packets in the terminal, perfect for servers without a desktop. Core pattern:\n\n`sudo tcpdump -i eth0 -nn port 80`\n\n- `-i eth0`: which interface (network card) to listen on. `-i any` means all.\n- `-nn`: show raw IPs and port numbers, no name lookups.\n- `port 80`: a **capture filter** so you only record what you care about.\n- `-A`: print payloads as text. `-w file.pcap`: save to a file.\n\nIt needs `sudo` because reading raw traffic is a privileged action."
+    },
+    {
+      "title": "Wireshark: the microscope",
+      "body": "**Wireshark** is a graphical packet analyser. It shows three panes: a list of packets, the decoded layers of the selected packet (Ethernet, IP, TCP, HTTP), and the raw bytes.\n\n**Display filters** narrow the view: `http`, `dns`, `tcp.port == 21`, `ip.addr == 10.0.0.5`, `http.request.method == \"POST\"`.\n\nThe killer feature: right-click a packet, choose **Follow > TCP Stream**, and Wireshark reassembles the whole conversation as readable text, like gluing the postcards back into the original letter."
+    },
+    {
+      "title": "Plaintext protocols",
+      "body": "Many older protocols were designed when networks were trusted, so they send everything, passwords included, as readable text:\n\n- **HTTP** (80): web forms and Basic Auth.\n- **FTP** (21): file transfer, `USER` and `PASS` in clear.\n- **Telnet** (23): remote shell, every keystroke visible.\n- **SMTP/POP3/IMAP** without TLS: email.\n- **SNMPv1/v2c**: device management with 'community strings' as passwords.\n\nTheir secure replacements: HTTPS, SFTP/FTPS, SSH, and mail over TLS. When an attacker spots port 21 or 23 open, they immediately think 'free credentials'."
+    },
+    {
+      "title": "Encoding is not encryption",
+      "body": "HTTP Basic Auth sends `Authorization: Basic YWxpY2U6U2VjcmV0MTIz`. Looks scrambled? It is just **Base64**, an *encoding*: a reversible format change with no key, like writing a message in Morse code. Anyone can decode it with `base64 -d`.\n\n**Encryption** needs a secret key to reverse, like a locked box.\n\nBeginners and even developers confuse the two. Attackers do not: whenever they see Base64, hex or URL-encoding, they decode it straight away to see what is hiding inside."
+    },
+    {
+      "title": "What encryption still leaks",
+      "body": "HTTPS hides the *content*, but not everything. A sniffer still sees **who** talks to **whom** (IP addresses), **when**, **how much** data, and usually the website name, because DNS queries are often plaintext and the TLS handshake includes the site name in a field called **SNI**.\n\nThis is **metadata**: the outside of the envelope. Defenders use it to spot malware calling home at regular intervals. Attackers use it to learn which services a target uses. Encryption solves privacy of content, not invisibility."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Passive credential sniffing",
+      "analogy": "Standing next to the post box and reading every postcard before it is collected.",
+      "how": [
+        "The attacker gets a position where traffic passes them: open Wi-Fi, a compromised machine, a mirrored switch port or after ARP spoofing.",
+        "They run tcpdump or Wireshark filtered on plaintext protocols like FTP, Telnet, HTTP or POP3.",
+        "They extract usernames, passwords and session cookies, then reuse them to log in."
+      ],
+      "thinking": "Old protocols never die in big networks. Somewhere a printer, camera, legacy app or script still logs in over FTP or HTTP. I just need to listen.",
+      "signs": "Hard to detect because sniffing is silent. Look for interfaces in promiscuous mode, unexpected capture tools, ARP anomalies, and later logins from unusual hosts using captured accounts.",
+      "defend": "Replace plaintext protocols with encrypted ones (SSH, SFTP, HTTPS, IMAPS), enforce TLS everywhere including internal networks, use MFA so stolen passwords alone are not enough, and segment networks."
+    },
+    {
+      "name": "Traffic analysis (metadata)",
+      "analogy": "Not reading the letters, but noticing that someone gets a letter from a divorce lawyer every Tuesday.",
+      "how": [
+        "The attacker or analyst captures encrypted traffic they cannot read.",
+        "They record destinations, DNS names, SNI, timing and sizes.",
+        "They infer which apps, cloud services, VPNs or internal servers are in use, and which hosts are most important."
+      ],
+      "thinking": "I can't read it, but the pattern tells me the backup server talks to that cloud provider every night at 2am, and the CFO's laptop connects to the payroll system.",
+      "signs": "Generally passive and invisible on the wire. Defenders use the same technique to catch malware beaconing.",
+      "defend": "Encrypted DNS (DNS over HTTPS/TLS), minimise exposed metadata, use VPNs on untrusted networks, and strong network segmentation so attackers cannot get a viewing position."
+    }
+  ],
+  "story": {
+    "title": "Heartland Payment Systems breach (2008)",
+    "body": "Heartland, a major US card payment processor, disclosed in January 2009 that attackers had been inside its network during 2008. After initially getting in through **SQL injection**, the attackers installed **sniffer malware** that captured card data as it travelled across Heartland's internal network unencrypted. Around 130 million card numbers were exposed; Albert Gonzalez was later convicted. **Lesson:** 'internal' does not mean 'safe'. Once attackers reach a good position, any plaintext traffic is theirs. Encrypt data in transit inside your network too, not only at the edge."
+  },
+  "lab": {
+    "title": "Catch a password on your own loopback",
+    "goal": "Run a tiny web server on your own machine, send a password to it over plain HTTP, and catch it with tcpdump and Wireshark.",
+    "steps": [
+      "Open three terminal windows. In terminal 1 start a local web server that only listens on 127.0.0.1.",
+      "In terminal 2 start tcpdump on the loopback interface `lo`, filtered to port 8000.",
+      "In terminal 3 send a request with a fake username and password using HTTP Basic Auth. Find the Authorization line in tcpdump's output.",
+      "Decode the Base64 value and confirm you can read the password.",
+      "Bonus: open Wireshark, capture on `lo`, repeat the curl command, filter with `http`, then right-click the request and choose Follow > TCP Stream."
+    ],
+    "commands": [
+      { "cmd": "python3 -m http.server 8000 --bind 127.0.0.1", "explain": "Terminal 1: Python's built-in web server, serving the current folder on port 8000, reachable only from this machine." },
+      { "cmd": "sudo tcpdump -i lo -nn -A 'tcp port 8000'", "explain": "Terminal 2: capture on loopback (`-i lo`), no name lookups (`-nn`), print payloads as text (`-A`), only port 8000 traffic." },
+      { "cmd": "curl -u alice:Secret123 http://127.0.0.1:8000/", "explain": "Terminal 3: request the page using Basic Auth with the made-up user alice. curl adds an Authorization header." },
+      { "cmd": "echo 'YWxpY2U6U2VjcmV0MTIz' | base64 -d", "explain": "Decodes the Base64 string you saw in the capture. Out comes `alice:Secret123`: encoding is not encryption." },
+      { "cmd": "sudo tcpdump -i lo -nn -w ~/day06.pcap 'tcp port 8000'", "explain": "Same capture but saved (`-w`) to a pcap file. Stop with Ctrl+C, then open it with `wireshark ~/day06.pcap`." }
+    ],
+    "safety": "Capture only on your own machine or a lab network you control. Sniffing other people's traffic, including on public Wi-Fi, is illegal interception in most countries."
+  },
+  "hunt": "A factory's network team monitors 40 network switches. Every five minutes a script logs into each switch with Telnet using the account `admin` and checks its status. The same admin password is used on all switches and on the VPN. The team says, 'It's fine, Telnet only runs on the internal network.' What is wrong?\n\nAnswer: Telnet sends the username and password in plaintext, and the script broadcasts them 480 times an hour. Anyone with a foothold inside (a phished laptop, malware, a rogue device) can sniff the password once and own every switch plus the VPN, because the password is reused. 'Internal' is not a security control. Fix: switch to SSH with keys, unique credentials per device, and MFA on the VPN.",
+  "terms": [
+    { "term": "Packet", "def": "A small chunk of data with an address label (header) and contents (payload).", "use": "Look at the packet sizes; those regular 200-byte packets every 60 seconds look like beaconing." },
+    { "term": "PCAP", "def": "A file containing recorded network traffic, readable in Wireshark or tcpdump.", "use": "Can you grab a pcap from the sensor during the incident window?" },
+    { "term": "Sniffing", "def": "Capturing network traffic as it passes, to read or analyse it.", "use": "FTP is still enabled, so anyone sniffing that VLAN gets the service account password." },
+    { "term": "Plaintext", "def": "Data sent or stored in readable form, without encryption.", "use": "The legacy app sends credentials in plaintext over HTTP, that's a high finding." },
+    { "term": "Display filter", "def": "A Wireshark expression that hides everything except the packets you want to see.", "use": "Set a display filter for dns and see what the infected host is resolving." },
+    { "term": "Encoding", "def": "Changing data's format, like Base64, without any secret key. Anyone can reverse it.", "use": "That token isn't encrypted, it's just Base64-encoded JSON; decode it." },
+    { "term": "Metadata", "def": "Information about communication, such as who, when and how much, rather than the content itself.", "use": "Even with TLS, the metadata shows exactly which SaaS tools they use." }
+  ],
+  "quiz": [
+    {
+      "q": "Which of these protocols sends passwords in plaintext?",
+      "options": ["SSH", "HTTPS", "Telnet", "SFTP"],
+      "answer": 2,
+      "why": "Telnet sends every keystroke, including passwords, unencrypted. SSH replaced it."
+    },
+    {
+      "q": "What does Wireshark's 'Follow TCP Stream' do?",
+      "options": ["Reassembles a whole conversation into readable text", "Blocks a connection", "Encrypts the traffic", "Speeds up the capture"],
+      "answer": 0,
+      "why": "It stitches the packets of one connection together so you can read the full exchange."
+    },
+    {
+      "q": "An HTTP header shows `Authorization: Basic ZGF2ZTpwYXNz`. What is true?",
+      "options": ["It is strongly encrypted", "It is a hash and cannot be reversed", "It is a session cookie", "It is Base64 and trivially decoded"],
+      "answer": 3,
+      "why": "Basic Auth just Base64-encodes `user:password`. Without HTTPS, anyone sniffing can read it."
+    },
+    {
+      "q": "With HTTPS, what can a sniffer typically still see?",
+      "options": ["Your password", "The page contents", "Which server IP you connect to and when", "Your session cookie"],
+      "answer": 2,
+      "why": "TLS hides content, but metadata such as IPs, timing, data sizes and often the site name remain visible."
+    },
+    {
+      "q": "Which tcpdump option saves the capture to a file?",
+      "options": ["-A", "-w", "-nn", "-i"],
+      "answer": 1,
+      "why": "`-w file.pcap` writes raw packets to a file. `-A` prints text, `-nn` disables lookups, `-i` picks the interface."
+    }
+  ],
+  "talk": {
+    "scenario": "An IT manager asks: 'Why do you keep flagging FTP and Telnet? They're only used on our internal network.'",
+    "model": "Both are plaintext protocols, so credentials cross the wire readable by anyone who can sniff that segment. Attackers rarely stay at the edge; once they phish one laptop they're inside, and a quick packet capture hands them these service accounts. Breaches like Heartland show internal sniffing is a real technique. Moving to SSH and SFTP removes that risk for very little cost, and it's an easy win for the report."
+  },
+  "reflect": "Think about the networks you join, such as home, work, cafés and hotels. Who else could be in a position to sniff your traffic there, and what would they still learn even when everything you use is HTTPS?"
+}

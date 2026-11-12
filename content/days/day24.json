@@ -1,0 +1,174 @@
+{
+  "day": 24,
+  "week": 4,
+  "title": "Owning the Windows Kingdom",
+  "theme": "Exploitation - Windows & Active Directory",
+  "minutes": 55,
+  "mindset": "In a company network, one hacked laptop is a doorway, not the goal. The goal is Active Directory, the master list that controls every door at once.",
+  "cards": [
+    {
+      "title": "Domains and Active Directory",
+      "body": "Most companies do not manage each Windows PC separately. They join them into a **domain** run by **Active Directory (AD)**, a central directory of every user, computer, and group, hosted on a **Domain Controller (DC)**. Think of AD as the master keyring and staff registry for the whole building. Log in once and AD vouches for you everywhere. This is efficient, but it means the Domain Controller is the crown jewel: control AD and you control every machine and account in the organization. Attackers almost always aim here."
+    },
+    {
+      "title": "Kerberos, the ticket system",
+      "body": "AD proves identity with **Kerberos**, a ticket-based system, so your password is not sent around constantly. Logging in, you get a **TGT** (Ticket Granting Ticket), like a wristband proving you are a verified employee. To use a service (a file share, a database), you trade the TGT for a **service ticket** for that specific service. Services and the DC trust the tickets, not re-typed passwords. This design is secure in principle, but the tickets and the keys behind them become exactly what attackers try to steal or forge."
+    },
+    {
+      "title": "Pass-the-hash",
+      "body": "Windows often proves who you are using your password's **hash** (a scrambled fingerprint), not the plaintext. Here is the catch: for some protocols, the hash itself is enough to authenticate. So if an attacker steals a password hash from one machine's memory, they can reuse it to log into other machines as that user, without ever cracking it. This is **pass-the-hash**. The attacker's insight: I do not need your actual password if the system will accept the hash as proof. Stolen hashes let them hop machine to machine."
+    },
+    {
+      "title": "Kerberoasting",
+      "body": "Some accounts run services (a SQL service, a web app) and are registered in AD with a label called an **SPN**. Any logged-in user can request a service ticket for such an account, and part of that ticket is encrypted with the service account's password hash. An attacker requests these tickets, takes them offline, and cracks them at leisure to recover the password. This is **Kerberoasting**, and it is powerful because service accounts are often old, over-privileged, and have weak, never-changed passwords. It needs only a normal domain account to start."
+    },
+    {
+      "title": "BloodHound: mapping the attack paths",
+      "body": "AD can have thousands of users and nested groups, so the shortest path to Domain Admin is hard to see by eye. **BloodHound** collects this data and draws it as a graph, revealing chains like 'this normal user can reset that user's password, who is an admin on the DC'. It turns a tangle of permissions into a clear route. Attackers love it because it finds non-obvious paths; defenders love it because it exposes the same dangerous shortcuts so they can cut them. It is pure relationship-mapping."
+    },
+    {
+      "title": "mimikatz, the credential vacuum",
+      "body": "**mimikatz** is a famous tool that pulls credentials straight out of a Windows machine's memory: password hashes, Kerberos tickets, and sometimes plaintext passwords cached by the system. Once an attacker has admin on one box, mimikatz harvests whatever credentials are sitting in memory, often including those of other users who logged in. Those stolen credentials feed pass-the-hash and ticket attacks to spread across the domain. Defenders counter with credential-protection features, limiting where admins log in, and watching for memory-reading behavior. It is the engine behind most AD compromises."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Pass-the-hash",
+      "analogy": "The door scanner accepts a photo of your fingerprint as readily as the real finger, so a thief who copies the photo walks in as you.",
+      "how": [
+        "Gain admin on one machine and dump password hashes from memory (e.g. with mimikatz)",
+        "Reuse a stolen hash to authenticate to other machines as that user",
+        "Move laterally across the network, repeating the harvest on each new host"
+      ],
+      "thinking": "The attacker asks: do I actually need the plaintext password, or will the system accept the hash as proof? If so, cracking is unnecessary.",
+      "signs": "Logons using NTLM hashes from unusual hosts, a single account authenticating across many machines quickly, lateral movement patterns.",
+      "defend": "Limit where privileged accounts log in, use Windows credential protections, enforce unique local admin passwords (LAPS), and monitor for lateral NTLM logons."
+    },
+    {
+      "name": "Kerberoasting",
+      "analogy": "You ask the front desk for a sealed envelope locked with a service's own padlock, then take it home and spend all week picking the lock in private.",
+      "how": [
+        "As any domain user, find accounts with SPNs (service accounts)",
+        "Request Kerberos service tickets for them, which are encrypted with the account's password hash",
+        "Crack the tickets offline to recover weak service-account passwords"
+      ],
+      "thinking": "The attacker asks: which service accounts can I get tickets for, and are their passwords old and weak enough to crack offline without alerting anyone?",
+      "signs": "A single account requesting many service tickets (especially RC4-encrypted ones) in a short time; TGS requests for numerous SPNs.",
+      "defend": "Use long random passwords or group-managed service accounts (gMSA), enforce AES encryption, limit service-account privileges, and alert on bulk ticket requests."
+    },
+    {
+      "name": "Credential dumping with mimikatz",
+      "analogy": "After getting into one office, you vacuum up every keycard left in desk drawers, including the manager's, then use them elsewhere.",
+      "how": [
+        "Obtain local administrator rights on a host",
+        "Read credentials (hashes, Kerberos tickets, cached secrets) from memory with mimikatz",
+        "Reuse those credentials via pass-the-hash or ticket attacks to reach more systems"
+      ],
+      "thinking": "The attacker asks: whose credentials are sitting in this machine's memory right now, and can any of them get me closer to the Domain Controller?",
+      "signs": "Processes reading the memory of the Windows credential store (LSASS), known mimikatz signatures, admin tools running where they should not.",
+      "defend": "Enable Credential Guard and LSASS protection, restrict admin logons, patch, and monitor for processes accessing LSASS memory."
+    }
+  ],
+  "story": {
+    "title": "NotPetya (2017)",
+    "body": "NotPetya began as a poisoned update to Ukrainian accounting software, then spread with devastating speed across corporate networks. It combined the EternalBlue exploit with credential-stealing techniques like those in mimikatz: once on one machine, it harvested credentials from memory and used them to log into others, pass-the-hash style, racing through entire Windows domains in minutes. Companies like Maersk saw thousands of machines wiped, with damages estimated in the billions. The lesson is how Active Directory's convenience becomes a weapon: shared, reusable credentials and a flat network let one infected laptop cascade into total domain compromise."
+  },
+  "lab": {
+    "title": "Understand AD attack paths with BloodHound sample data",
+    "goal": "See how BloodHound maps a domain and reveals the shortest route to Domain Admin, without touching any real network.",
+    "steps": [
+      "On your own Kali VM, install BloodHound and its database from the Kali repositories",
+      "Load the publicly provided BloodHound sample/example dataset (no live domain needed)",
+      "Use the built-in query 'Shortest Paths to Domain Admins' and read the graph",
+      "Note how a normal user can chain permissions up to full control",
+      "For hands-on AD attacks, use permission-granting labs like Hack The Box Pro Labs or TryHackMe AD rooms"
+    ],
+    "commands": [
+      {
+        "cmd": "sudo apt update && sudo apt install -y bloodhound neo4j",
+        "explain": "Installs BloodHound and the Neo4j graph database it uses, from Kali's official repositories, on your own machine."
+      },
+      {
+        "cmd": "sudo neo4j console",
+        "explain": "Starts the Neo4j database that BloodHound reads from; you then log in and import the sample data to explore graphs."
+      },
+      {
+        "cmd": "bloodhound",
+        "explain": "Launches the BloodHound interface where you load sample data and run queries like shortest path to Domain Admin."
+      }
+    ],
+    "safety": "Use only the sample dataset or lab platforms that grant permission (Hack The Box, TryHackMe). Collecting data from a real Active Directory you do not own or administer is illegal."
+  },
+  "hunt": "Scenario: Logs show a regular employee's domain account requested Kerberos service tickets for twelve different service accounts within one minute, all using RC4 encryption. Nothing else unusual yet. What should you suspect? Answer: This looks like Kerberoasting. A normal user does not legitimately need a burst of service tickets for many service accounts, and RC4 tickets are the ones attackers prefer because they are easiest to crack offline. The attacker is harvesting tickets to crack weak service-account passwords later. Investigate the account, rotate affected service-account passwords to long random values, and enforce AES to make cracking far harder.",
+  "terms": [
+    { "term": "Active Directory", "def": "Windows' central directory of all users, computers, and groups in a domain.", "use": "We pivoted until we reached a Domain Controller running Active Directory." },
+    { "term": "Domain Controller", "def": "The server that hosts Active Directory and authenticates the whole domain.", "use": "Control the Domain Controller and you own every machine." },
+    { "term": "Kerberos", "def": "AD's ticket-based authentication system that avoids resending passwords.", "use": "The Kerberos tickets became the thing worth stealing." },
+    { "term": "Pass-the-hash", "def": "Authenticating with a stolen password hash instead of the plaintext password.", "use": "Pass-the-hash let us log in without ever cracking anything." },
+    { "term": "Kerberoasting", "def": "Requesting service tickets to crack weak service-account passwords offline.", "use": "Kerberoasting cracked an old SQL service account in hours." },
+    { "term": "BloodHound", "def": "A tool that graphs AD relationships to reveal attack paths to Domain Admin.", "use": "BloodHound showed a three-hop path to Domain Admin." },
+    { "term": "mimikatz", "def": "A tool that extracts credentials and tickets from Windows memory.", "use": "mimikatz pulled the admin's hash straight out of memory." }
+  ],
+  "quiz": [
+    {
+      "q": "Why is the Domain Controller the top target in a Windows network?",
+      "options": [
+        "It stores the company website",
+        "It hosts Active Directory, so controlling it means controlling every user and machine",
+        "It is the only machine with internet access",
+        "It runs the firewall"
+      ],
+      "answer": 1,
+      "why": "The DC runs AD, the central authority for the domain, so owning it owns the whole environment."
+    },
+    {
+      "q": "What makes pass-the-hash possible?",
+      "options": [
+        "Passwords are stored in plaintext everywhere",
+        "Some Windows authentication accepts the password hash itself as proof, no plaintext needed",
+        "Hashes can always be instantly reversed",
+        "Kerberos is disabled by default"
+      ],
+      "answer": 1,
+      "why": "Because the hash alone can authenticate for some protocols, a stolen hash is enough to impersonate the user."
+    },
+    {
+      "q": "Why does Kerberoasting only need a normal domain account?",
+      "options": [
+        "Normal users are admins by default",
+        "Any domain user can request service tickets, which are encrypted with the service account's hash",
+        "Service accounts have no passwords",
+        "The DC shares its password with everyone"
+      ],
+      "answer": 1,
+      "why": "Requesting a service ticket is a normal action available to any user, and the ticket can be cracked offline."
+    },
+    {
+      "q": "What does BloodHound primarily do?",
+      "options": [
+        "Crack password hashes",
+        "Graph Active Directory relationships to reveal attack paths to Domain Admin",
+        "Launch reverse shells",
+        "Encrypt Kerberos tickets"
+      ],
+      "answer": 1,
+      "why": "BloodHound maps who can control whom, exposing non-obvious routes to high privilege."
+    },
+    {
+      "q": "How does mimikatz enable spreading across a domain?",
+      "options": [
+        "It patches the domain controller",
+        "It harvests credentials and tickets from memory that feed pass-the-hash and ticket attacks",
+        "It disables Active Directory",
+        "It resets all passwords"
+      ],
+      "answer": 1,
+      "why": "By pulling credentials from one machine's memory, mimikatz supplies the material to authenticate to others."
+    }
+  ],
+  "talk": {
+    "scenario": "A manager asks: 'If an attacker phishes just one employee's laptop, how do they end up controlling the whole company?'",
+    "model": "That one laptop is a foothold, not the finish line. In a Windows network everything is tied to Active Directory, so the attacker's goal is the Domain Controller. From the laptop they dump credentials from memory with something like mimikatz, then reuse those hashes to hop to other machines via pass-the-hash. They might Kerberoast weak service accounts, and use BloodHound to map the shortest path to Domain Admin. Each step collects stronger credentials until they control AD. We defend by limiting where admins log in, protecting credentials in memory, strengthening service-account passwords, and segmenting the network so one laptop cannot cascade."
+  },
+  "reflect": "Active Directory trades security for convenience: one login works everywhere. Explain in your own words why that same convenience is what lets a single compromised machine threaten the entire domain."
+}

@@ -1,0 +1,174 @@
+{
+  "day": 23,
+  "week": 4,
+  "title": "From User to Root",
+  "theme": "Exploitation - Linux Privilege Escalation",
+  "minutes": 55,
+  "mindset": "Getting in gets you a seat. Privilege escalation gets you the keys to the building. The system usually hands them over through a small misconfiguration you were meant to overlook.",
+  "cards": [
+    {
+      "title": "Why escalate at all",
+      "body": "A shell as a low-privilege user is limited, like being a guest in a hotel: you can use your room but not the vault or other rooms. **Privilege escalation** is moving from that limited account to a powerful one, ideally **root** (the Linux super-user who can do anything). Attackers rarely land as root directly; they get a foothold as a web-server or normal user, then hunt for a mistake that lets them climb. The whole game is: what on this box lets a weak user act as a strong one?"
+    },
+    {
+      "title": "SUID: borrowed power",
+      "body": "Normally a program runs with your permissions. A **SUID** (Set User ID) file is special: it runs as its owner, no matter who launches it. That is why `passwd` can change the password file (owned by root) even when you run it. Useful, but dangerous: if a SUID-root program can be tricked into running your commands, those commands run as root. Attackers list all SUID files and check each against known tricks. A SUID binary that can spawn a shell or read any file is a straight path to root."
+    },
+    {
+      "title": "sudo misconfigurations",
+      "body": "**sudo** lets listed users run specific commands as root, which is healthy when scoped tightly. The danger is sloppy rules. If you are allowed to run a text editor or a scripting tool as root 'just for one task', many such tools can spawn a shell from inside themselves, handing you a root prompt. `sudo -l` lists what you may run. Attackers read that list hungrily, because a single over-generous entry, like running `vim` or `find` as root, is often all they need to become root."
+    },
+    {
+      "title": "Cron jobs: the clockwork flaw",
+      "body": "**cron** runs scheduled tasks automatically, often as root. If a root cron job runs a script that you can edit, you win: at the next run, your edited script executes as root. Even a job that calls a script by a loose path or in a writable folder can be hijacked. Attackers look for scheduled tasks, check who owns the scripts they run, and ask: can I change what runs, or where it looks? A writable file executed by root on a timer is a reliable way to climb."
+    },
+    {
+      "title": "Kernel exploits: last resort",
+      "body": "The **kernel** is the core of Linux that everything runs on. A bug in it can let any user become root, because the kernel sits above all permissions. If the system is old and unpatched, a known kernel exploit may work. But attackers treat these as a last resort: they can crash the machine, are version-specific, and are noisy. The habit is to exhaust easy wins (SUID, sudo, cron, readable secrets) first, because misconfigurations are safer and quieter than firing a kernel exploit."
+    },
+    {
+      "title": "linpeas: the automated checklist",
+      "body": "Checking every SUID file, sudo rule, cron job, and password left in a config by hand is slow. **linpeas** is a script that scans a Linux box and highlights likely escalation paths in color, so you do not miss anything. It is the attacker's enumeration checklist automated. Defenders use the exact same scripts to audit their own systems before an attacker does. The lesson: privilege escalation is mostly careful enumeration, and whoever enumerates more thoroughly, attacker or defender, wins."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "SUID binary abuse",
+      "analogy": "A cleaner has a master key that works in any room; if you can borrow their trolley's key for a moment, every door opens for you too.",
+      "how": [
+        "List all SUID files on the system",
+        "Identify one owned by root that can run commands, read files, or spawn a shell",
+        "Invoke it in the documented way so your action executes with root's power"
+      ],
+      "thinking": "The attacker asks: which programs here run as root regardless of who starts them, and can any of them be bent into running my command or giving me a shell?",
+      "signs": "Unusual use of SUID binaries, a low-privilege user suddenly performing root-only actions, shells spawned as a child of a SUID program.",
+      "defend": "Remove the SUID bit from binaries that do not need it, keep a minimal audited list, and monitor for SUID binaries spawning shells (reference GTFOBins to know the risky ones)."
+    },
+    {
+      "name": "sudo misconfiguration",
+      "analogy": "You are allowed to drive the company car 'only to the shop', but nobody disabled the car's ability to go anywhere, so you just keep driving.",
+      "how": [
+        "Run sudo -l to see which commands you may run as root",
+        "Spot an entry for a tool that can break out to a shell (editor, interpreter, pager, find)",
+        "Use that tool's shell-escape to obtain a root prompt"
+      ],
+      "thinking": "The attacker asks: what am I permitted to run as root, and does any of it have a way to spawn a shell from inside? One over-broad rule is enough.",
+      "signs": "Root shells spawned from interactive tools run via sudo, sudo use outside normal patterns, editing of sensitive files by unexpected users.",
+      "defend": "Grant sudo only to specific, non-interactive commands, avoid tools with shell escapes, use NOEXEC where possible, and review sudoers regularly."
+    },
+    {
+      "name": "Writable cron job hijack",
+      "analogy": "A caretaker follows a to-do list posted on the wall each night; if the list is in pencil and you can write on it, the caretaker does your chores too.",
+      "how": [
+        "Enumerate scheduled jobs and the scripts they run",
+        "Find a root-run job whose script or its directory you can modify",
+        "Edit the script to run your command; it executes as root at the next scheduled run"
+      ],
+      "thinking": "The attacker asks: what runs automatically as root on a timer, and can I change what it runs or where it looks for files?",
+      "signs": "Modification of scripts referenced by cron, unexpected processes at regular intervals, new files or users appearing on a schedule.",
+      "defend": "Make cron scripts and their directories writable only by root, use absolute paths, and monitor scheduled-task files for changes."
+    }
+  ],
+  "story": {
+    "title": "Dirty COW (CVE-2016-5195)",
+    "body": "Dirty COW was a flaw in the Linux kernel's copy-on-write memory handling that let any logged-in user write to files they should only be able to read. By racing the kernel, a normal user could modify a root-owned file and escalate to full root control. It affected nearly every Linux system for years because the bug was ancient and the kernel is trusted above all permissions. Exploits were reliable and widely used. The lesson is twofold: kernel bugs erase all the careful permission design above them, and patching the core of the system matters as much as any configuration."
+  },
+  "lab": {
+    "title": "Enumerate your own box for escalation paths",
+    "goal": "Practice the exact enumeration an attacker runs, on a machine you own, and read what it reveals.",
+    "steps": [
+      "On your own Kali VM or a Metasploitable 2 VM in VirtualBox, open a terminal as a normal user",
+      "List all SUID binaries and compare them against known risky ones",
+      "Check what you can run as root with sudo",
+      "List scheduled jobs and note who owns the scripts they run",
+      "Optionally run linpeas on a lab box to see a full automated report"
+    ],
+    "commands": [
+      {
+        "cmd": "find / -perm -4000 -type f 2>/dev/null",
+        "explain": "Finds every SUID file (-perm -4000) on the system; 2>/dev/null hides permission-denied noise. This is step one of SUID hunting."
+      },
+      {
+        "cmd": "sudo -l",
+        "explain": "Lists exactly which commands your user may run as root via sudo; an over-broad entry here is a common escalation path."
+      },
+      {
+        "cmd": "cat /etc/crontab; ls -la /etc/cron.*",
+        "explain": "Shows scheduled jobs and the scripts they run so you can check whether any root-run script is writable by you."
+      }
+    ],
+    "safety": "Run these only on machines you own or deliberately vulnerable lab VMs like Metasploitable 2. Enumerating or escalating on systems you do not own is illegal."
+  },
+  "hunt": "Scenario: You have a low-privilege shell. `sudo -l` shows you may run `/usr/bin/find` as root with no password. Why is this a problem? Answer: find has a built-in way to execute commands (its -exec option), so running it as root lets you launch a shell as root, for example `sudo find . -exec /bin/sh \\; -quit`. A sudo rule meant to let you search files actually grants full root, because the tool can spawn a shell from inside itself. sudo rules must point to narrowly scoped, non-interactive commands, never general-purpose tools with shell escapes.",
+  "terms": [
+    { "term": "Privilege escalation", "def": "Moving from a limited account to a more powerful one, ideally root.", "use": "We got a shell, then privilege escalation got us root." },
+    { "term": "root", "def": "The Linux super-user that can do anything on the system.", "use": "The SUID trick dropped us straight to a root shell." },
+    { "term": "SUID", "def": "A file flag that makes a program run as its owner, not as the user who launched it.", "use": "That SUID binary ran as root, so its shell escape rooted us." },
+    { "term": "sudo", "def": "A mechanism letting listed users run specific commands as root.", "use": "sudo -l revealed a tool with a shell escape." },
+    { "term": "cron", "def": "The Linux scheduler that runs tasks automatically, often as root.", "use": "A writable cron script let us run code as root on a timer." },
+    { "term": "Kernel", "def": "The core of the operating system that sits above all permissions.", "use": "The box was old, so a kernel exploit was the fallback." },
+    { "term": "linpeas", "def": "A script that automatically scans a Linux host for likely privilege-escalation paths.", "use": "linpeas flagged the writable cron job in seconds." }
+  ],
+  "quiz": [
+    {
+      "q": "Why is a SUID-root binary that can spawn a shell dangerous?",
+      "options": [
+        "It uses extra memory",
+        "It runs as root no matter who launches it, so its shell runs as root",
+        "It disables sudo",
+        "It encrypts the filesystem"
+      ],
+      "answer": 1,
+      "why": "SUID makes the program run with its owner's privileges, so if root owns it and it opens a shell, you get root."
+    },
+    {
+      "q": "What does `sudo -l` show you?",
+      "options": [
+        "A list of logged-in users",
+        "The system log",
+        "Which commands your account may run as root via sudo",
+        "All SUID files"
+      ],
+      "answer": 2,
+      "why": "sudo -l lists your allowed sudo commands, which attackers check for over-broad or shell-escapable entries."
+    },
+    {
+      "q": "How does a writable cron script lead to root?",
+      "options": [
+        "It changes your password",
+        "A root-run scheduled job executes your edited script as root at the next run",
+        "It opens a firewall port",
+        "It reads the kernel version"
+      ],
+      "answer": 1,
+      "why": "If root runs a script on a timer and you can edit that script, your code runs as root automatically."
+    },
+    {
+      "q": "Why are kernel exploits usually a last resort for attackers?",
+      "options": [
+        "They require a password",
+        "They are version-specific, can crash the machine, and are noisy",
+        "They only work on Windows",
+        "They cannot give root"
+      ],
+      "answer": 1,
+      "why": "Kernel exploits are fragile and loud, so attackers prefer quiet misconfiguration-based wins first."
+    },
+    {
+      "q": "What is linpeas mainly used for?",
+      "options": [
+        "Cracking passwords",
+        "Automatically enumerating a Linux host for privilege-escalation paths",
+        "Launching reverse shells",
+        "Scanning remote networks"
+      ],
+      "answer": 1,
+      "why": "linpeas automates the escalation checklist, highlighting SUID, sudo, cron and secret-leak issues to investigate."
+    }
+  ],
+  "talk": {
+    "scenario": "A sysadmin asks: 'We locked down logins well. Once someone does get a normal shell, how do they become root?'",
+    "model": "Usually through a small misconfiguration rather than brute force. They enumerate the box, often with linpeas, looking for SUID binaries owned by root that can spawn a shell, over-broad sudo rules for tools with shell escapes, or cron jobs running writable scripts as root. Any one of those turns a normal user into root. Kernel exploits are a last resort because they are noisy and version-specific. The defense is to minimize SUID binaries, scope sudo to narrow non-interactive commands, make cron scripts root-owned only, and keep the kernel patched."
+  },
+  "reflect": "Think of privilege escalation as the system handing over keys through small oversights. Which of today's paths (SUID, sudo, cron, kernel) surprised you most that it could lead all the way to root, and why?"
+}

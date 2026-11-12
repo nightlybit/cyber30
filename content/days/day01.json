@@ -1,0 +1,102 @@
+{
+  "day": 1,
+  "week": 1,
+  "title": "Think Like a Burglar, Act Like a Locksmith",
+  "theme": "Foundations & Mindset",
+  "minutes": 45,
+  "mindset": "Every system was built by people who assumed it would be used as intended; your job is to ask what happens when it is not.",
+  "cards": [
+    {
+      "title": "What is the hacker mindset?",
+      "body": "A normal user sees a login page and types a password. A hacker sees the same page and asks: **what if I type nothing? Something enormous? Someone else's name?** The hacker mindset is curiosity about the gap between how a system *should* work and how it *actually* works.\n\nThink of a hotel. Guests use the front door. A security tester walks around the building checking the loading dock, the fire exit propped open with a brick, and the window nobody locks. Same building, different questions."
+    },
+    {
+      "title": "The CIA triad: what we protect",
+      "body": "Security protects three things, nicknamed the **CIA triad** (nothing to do with the spy agency):\n\n- **Confidentiality**: only the right people can read it. A sealed letter.\n- **Integrity**: nobody can secretly change it. A tamper-proof seal on a medicine bottle.\n- **Availability**: it works when you need it. A shop that is actually open during business hours.\n\nEvery attack breaks at least one of these. Stealing a database hits confidentiality; altering a bank balance hits integrity; ransomware or flooding a website hits availability."
+    },
+    {
+      "title": "Threat, vulnerability, risk",
+      "body": "These three words get mixed up constantly, so learn them precisely:\n\n- **Vulnerability**: a weakness. Your back door has a broken lock.\n- **Threat**: someone or something that could exploit it. A burglar in your neighbourhood.\n- **Risk**: the chance it happens multiplied by how bad it would be. Broken lock + burglars nearby + jewellery inside = high risk.\n\nA broken lock on an empty garden shed is a vulnerability with low risk. Professionals prioritise by **risk**, not by how scary a bug sounds."
+    },
+    {
+      "title": "Hat colours: who is who",
+      "body": "The security world borrows hat colours from old Western films:\n\n- **White hat**: an ethical hacker who tests systems *with permission* to help fix them. Pentesters and bug bounty hunters.\n- **Black hat**: a criminal who breaks in for profit, damage or spying.\n- **Grey hat**: hacks without permission but claims good intentions. Still illegal in most countries.\n\nThe skills are identical. The only difference is **permission**, like a locksmith opening your door because you hired them versus a stranger picking it at night."
+    },
+    {
+      "title": "The law: permission is everything",
+      "body": "Accessing a computer you do not own, without permission, is a crime almost everywhere: the **Computer Fraud and Abuse Act** in the US, the **Computer Misuse Act** in the UK, and similar laws elsewhere. Even a 'harmless' scan of a stranger's server can get you in trouble.\n\nProfessionals work under a written **scope** and **rules of engagement**: which systems, which dates, which techniques are allowed. Think of it as a signed work order. No signature, no work. In this course you only touch your own machines or sites that explicitly invite practice."
+    },
+    {
+      "title": "Kali Linux tour",
+      "body": "**Kali Linux** is a free operating system maintained by OffSec, pre-loaded with hundreds of security tools. Think of it as a mechanic's van already stocked with every spanner.\n\nOpen the top-left menu and you will see tools grouped by phase: Information Gathering, Vulnerability Analysis, Web Application Analysis, Password Attacks, Sniffing & Spoofing, and more. That order mirrors how a real attack unfolds. Most work happens in the **terminal**, a text window where you type commands. Kali is a toolbox, not magic: the thinking still comes from you."
+    }
+  ],
+  "attacks": [],
+  "story": {
+    "title": "Equifax breach (2017)",
+    "body": "In 2017 credit agency Equifax lost personal data, including Social Security numbers, of about 147 million people. The cause was a known flaw in **Apache Struts**, a web framework, tracked as CVE-2017-5638. A patch had been released in March; Equifax had not applied it on an internet-facing dispute portal, and attackers got in from mid-May. They stayed for weeks, partly because an expired certificate meant a traffic-inspection tool was not working. **Lesson:** the vulnerability was public and fixable. Risk came from slow patching and broken monitoring, not from genius attackers."
+  },
+  "lab": {
+    "title": "Get to know your Kali machine",
+    "goal": "Open a terminal, confirm who and where you are, and update your toolbox safely.",
+    "steps": [
+      "Open the Terminal from the Kali menu or the taskbar icon.",
+      "Run each command below and read the output slowly. Do not worry about understanding everything yet.",
+      "Write down your username, your Kali version, and your machine's IP address in a notes file or notebook.",
+      "Update your package list and upgrade installed tools so you start with current versions."
+    ],
+    "commands": [
+      { "cmd": "whoami", "explain": "Prints the name of the user you are logged in as. Attackers run this first after breaking in to learn what power they have." },
+      { "cmd": "cat /etc/os-release", "explain": "`cat` prints a file's contents; `/etc/os-release` describes which operating system and version this is." },
+      { "cmd": "ip a", "explain": "Shows your network interfaces and their addresses. Look for `inet` followed by a number like 192.168.x.x: that is your IP address." },
+      { "cmd": "sudo apt update && sudo apt full-upgrade -y", "explain": "`sudo` runs as administrator, `apt update` refreshes the list of available software, `&&` means 'then, if that worked', and `full-upgrade -y` installs all updates, answering yes automatically." }
+    ],
+    "safety": "Everything today runs on your own Kali machine only. Do not point any tool at a network or website you do not own or have written permission to test."
+  },
+  "hunt": "A small café runs a laptop behind the counter that takes card payments. The Wi-Fi password is written on a chalkboard for customers, and the payment laptop is on the same Wi-Fi. The laptop has not been updated in two years because 'updates break things'. What is wrong, and which part of the CIA triad is at risk?\n\nAnswer: Customers (and anyone sitting outside) share a network with the payment laptop, so there is no separation between untrusted and sensitive devices. The laptop is unpatched, so known vulnerabilities are likely present. A threat (any customer) + a vulnerability (old software on a shared network) + valuable assets (card data) = high risk, mainly to **confidentiality**, but also integrity and availability if ransomware hits.",
+  "terms": [
+    { "term": "CIA triad", "def": "The three goals of security: Confidentiality (secrecy), Integrity (no tampering) and Availability (it works when needed).", "use": "That ransomware incident was mainly an availability hit, but they also exfiltrated data, so confidentiality is gone too." },
+    { "term": "Vulnerability", "def": "A weakness in a system that someone could take advantage of, like an unlocked window.", "use": "The scanner flagged a vulnerability in the outdated web server, but it is not internet-facing." },
+    { "term": "Threat actor", "def": "The person or group who might attack, from bored teenagers to organised criminals to government spies.", "use": "Given they handle payments, the main threat actor is financially motivated cybercrime, not nation states." },
+    { "term": "Risk", "def": "How likely something bad is to happen combined with how much damage it would do.", "use": "It's a critical bug, but on an isolated test box, so the business risk is actually low." },
+    { "term": "Scope", "def": "The written list of exactly which systems and techniques a tester is allowed to touch.", "use": "That subdomain is out of scope, so we note it and leave it alone." },
+    { "term": "Penetration test (pentest)", "def": "A hired, permitted, simulated attack to find weaknesses before criminals do.", "use": "The annual pentest found the same misconfiguration as last year, so we need to fix the process, not just the server." }
+  ],
+  "quiz": [
+    {
+      "q": "An attacker changes the prices in an online shop's database so items cost one cent. Which part of the CIA triad is mainly broken?",
+      "options": ["Confidentiality", "Integrity", "Availability", "Authentication"],
+      "answer": 1,
+      "why": "The data was secretly altered, which breaks integrity. Nothing was necessarily read by outsiders or taken offline."
+    },
+    {
+      "q": "What is the ONLY real difference between a white-hat and a black-hat hacker?",
+      "options": ["The tools they use", "Their skill level", "Which operating system they run", "Whether they have permission"],
+      "answer": 3,
+      "why": "Both use the same tools and skills. Permission (a written scope) is what makes testing legal and ethical."
+    },
+    {
+      "q": "Your server has a serious bug, but it is unplugged and locked in a cupboard. How would a professional describe it?",
+      "options": ["A vulnerability with low risk", "A high-risk threat", "Not a vulnerability", "A zero-day"],
+      "answer": 0,
+      "why": "The weakness still exists (vulnerability), but nobody can reach it, so the likelihood and therefore the risk is low."
+    },
+    {
+      "q": "Before a pentest begins, which document tells you what you may and may not touch?",
+      "options": ["The CVE list", "The scope / rules of engagement", "The Kali menu", "The firewall logs"],
+      "answer": 1,
+      "why": "The scope and rules of engagement are the signed agreement defining targets, dates and allowed techniques."
+    },
+    {
+      "q": "A website is flooded with fake traffic until real customers cannot load it. Which CIA goal is attacked?",
+      "options": ["Confidentiality", "Integrity", "Availability", "None of them"],
+      "answer": 2,
+      "why": "Customers cannot use the service, so availability is broken. This is a denial-of-service attack."
+    }
+  ],
+  "talk": {
+    "scenario": "Your manager asks: 'We just heard about a big vulnerability on the news. Are we in danger?'",
+    "model": "A vulnerability on its own is not the same as risk. First I'd check whether we actually run the affected software and whether it's exposed to the internet. Then I'd look at what data or services sit behind it, because that tells us the impact on confidentiality, integrity or availability. If it's exposed and important, we patch or mitigate today; if it's internal and low value, we schedule it with normal maintenance."
+  },
+  "reflect": "Think of a building or app you use every day. Where would a curious attacker look first, and why do you think the people who built it might have missed that spot?"
+}

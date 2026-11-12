@@ -1,0 +1,174 @@
+{
+  "day": 20,
+  "week": 4,
+  "title": "Making the Server Do Your Bidding",
+  "theme": "Web - Server-Side Injection & File Flaws",
+  "minutes": 55,
+  "mindset": "Any value the server uses to fetch a file, open a URL, or run a command is a lever. If you control the lever, you control the machine.",
+  "cards": [
+    {
+      "title": "The theme: trusting user input too far",
+      "body": "Today's bugs share one root cause: the server takes something you typed and uses it to do a powerful action. It might open the URL you gave, read the filename you chose, save the file you uploaded, or run the command you influenced. Each is convenient for the developer and dangerous when unchecked. An attacker's whole job is to ask: what does this input eventually touch? A search box might run a database query; a 'download' link might read a file path; an 'avatar upload' might save code the server later runs."
+    },
+    {
+      "title": "SSRF: the server as your proxy",
+      "body": "**Server-Side Request Forgery** happens when an app fetches a URL you supply, for example to grab a preview image. Normally you give `https://example.com/pic.png`. But what if you give `http://169.254.169.254/`? On cloud servers that address is the **metadata service**, a hidden internal endpoint that hands out secret keys. The server, trusting your URL, fetches it and may return those secrets to you. SSRF turns the server into your personal messenger, reaching internal systems your own browser never could."
+    },
+    {
+      "title": "Path traversal and LFI",
+      "body": "When an app builds a file path from your input, like `/var/www/files/<name>`, you can try to climb out of the folder. The trick `../` means 'go up one directory' (like `..` in the terminal). Supplying `../../../../etc/passwd` walks up to the system root and reads a sensitive file. This is **path traversal**. When the server then displays or includes that file, it is **Local File Inclusion (LFI)**. The attacker's question is simple: does this filename get sanitized, or can I just add enough `../` to escape?"
+    },
+    {
+      "title": "File upload flaws",
+      "body": "Upload features are risky because a saved file might later be executed by the server. If a PHP site lets you upload `shell.php` into a web-readable folder, visiting that file runs your code as the server, giving you a **web shell** (a webpage that runs commands). Attackers probe the checks: Does it block `.php`? Try `.phtml` or `shell.php.jpg`. Does it only check the extension? Lie in the `Content-Type`. Safe uploads validate the real file type, rename files, store them outside the web root, and never let uploads be executed."
+    },
+    {
+      "title": "OS command injection",
+      "body": "Sometimes an app passes your input into a system command. A 'ping this host' tool might run `ping -c1 <your input>`. If you send `8.8.8.8; cat /etc/passwd`, the shell runs ping and then your extra command, because `;` chains commands. This is **OS command injection**, and it can hand an attacker full control of the server. The root fix is to never build shell strings from user input; call programs with safe argument arrays, or strictly allow-list the exact values permitted."
+    },
+    {
+      "title": "Why these are rated so high",
+      "body": "Access-control bugs expose data, but these server-side flaws often give **code execution** or reach into the internal network, which is why they top severity charts. One command injection can mean the whole server. One SSRF against cloud metadata can mean the whole account. The attacker's mindset is to chain them: an upload flaw plus a traversal bug, or an SSRF that leaks a key then unlocks a database. Defenders must treat every place user input meets the operating system as a guarded border, not a convenience."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "SSRF (Server-Side Request Forgery)",
+      "analogy": "You cannot enter a secure building, so you phone the receptionist inside and ask them to open the vault and read you what is on the note.",
+      "how": [
+        "Find a feature where the server fetches a URL you control (image preview, webhook, PDF generator)",
+        "Replace the URL with an internal target such as the cloud metadata address or an internal admin panel",
+        "The server fetches it and returns the response, exposing internal data or credentials"
+      ],
+      "thinking": "The attacker asks: who is actually making this request, me or the server? If the server fetches my URL, it can reach places my browser cannot, including internal-only systems.",
+      "signs": "Outbound requests from the app server to internal IPs, link-local 169.254.x.x, or localhost; unusual metadata-endpoint access in logs.",
+      "defend": "Allow-list permitted hosts, block internal/link-local ranges, disable unused URL schemes, and require the metadata service to use session tokens (IMDSv2)."
+    },
+    {
+      "name": "Path traversal / Local File Inclusion",
+      "analogy": "The librarian will fetch any book by shelf code, so you hand over a code that points outside the library, into the staff office filing cabinet.",
+      "how": [
+        "Find input used to build a file path (download, template, language file)",
+        "Inject ../ sequences to climb above the intended folder",
+        "Request a sensitive file like /etc/passwd or an app config, which the server reads back"
+      ],
+      "thinking": "The attacker asks: is this filename used raw to open a file? If so, can I add ../ to escape the folder, or encode the dots to slip past a filter?",
+      "signs": "Requests containing ../ or encoded variants (%2e%2e%2f), access to files far outside the web root, 404-then-200 patterns as the attacker tunes the path.",
+      "defend": "Never pass user input to file paths directly; resolve the canonical path and confirm it stays inside the allowed folder, or map inputs to a fixed allow-list of files."
+    },
+    {
+      "name": "OS command injection",
+      "analogy": "You ask the clerk to 'write John on the form', but you phrase it as 'write John, then shred the records', and the clerk obediently does both.",
+      "how": [
+        "Find a feature that runs a system command using your input (ping, nslookup, image conversion)",
+        "Append a shell separator and your own command, for example 8.8.8.8; id",
+        "The shell runs both, returning your command's output or executing silently"
+      ],
+      "thinking": "The attacker asks: does my input end up inside a shell command? If so, characters like ; | && let me tack on commands of my own.",
+      "signs": "Unexpected child processes spawned by the web app, shell metacharacters in parameters, outbound connections from the server right after a request.",
+      "defend": "Avoid the shell entirely; call programs with argument arrays, validate input against a strict allow-list, and run the service with least privilege."
+    }
+  ],
+  "story": {
+    "title": "Capital One breach (2019)",
+    "body": "An attacker exploited a Server-Side Request Forgery weakness in a misconfigured web application firewall on Capital One's cloud infrastructure. By making the server request the cloud metadata endpoint, they tricked it into handing over temporary credentials for an internal role. Those credentials unlocked storage buckets holding data on over 100 million customers. No password was cracked and no malware was needed; the server was simply persuaded to fetch an internal URL and leak the keys. The lesson: cloud metadata endpoints are gold, and any feature that fetches a URL on your behalf must be tightly caged."
+  },
+  "lab": {
+    "title": "Spot command injection safely on your own box",
+    "goal": "Understand how shell separators chain commands, using harmless commands on your own Kali machine.",
+    "steps": [
+      "Open a terminal on your own Kali VM (no target, no network needed)",
+      "Run a normal command, then see how a separator lets a second command run",
+      "Observe how quoting or passing arguments as an array would have prevented it",
+      "For a real web lab, use PortSwigger's free command-injection labs, which grant permission",
+      "Note in your journal which characters (; | && ) the shell treats as separators"
+    ],
+    "commands": [
+      {
+        "cmd": "echo hello; id",
+        "explain": "Demonstrates that a semicolon runs a second command after the first; this is exactly what command injection abuses."
+      },
+      {
+        "cmd": "echo \"8.8.8.8; id\" | cat",
+        "explain": "Shows that when input is treated as data (piped to cat), the injected part stays harmless text, illustrating safe handling."
+      },
+      {
+        "cmd": "curl --path-as-is 'http://localhost/download?file=../../etc/hostname'",
+        "explain": "Sends a path-traversal style request to a service you run locally; --path-as-is stops curl normalizing the ../ so you see raw behavior."
+      }
+    ],
+    "safety": "Run these only against your own Kali VM or PortSwigger's permission-granting labs. Never send traversal, SSRF or injection payloads to systems you do not own."
+  },
+  "hunt": "Scenario: A photo site has a feature: paste any image URL and it saves a thumbnail. You paste `http://localhost:8080/admin/status` and the site shows you the internal admin page's output. What is wrong? Answer: This is SSRF. The server fetches whatever URL you give, including internal-only addresses like localhost and cloud metadata, that your own browser could never reach. It should allow-list only external image hosts, block localhost and internal ranges, and refuse non-image responses. The feature is acting as a proxy into the private network.",
+  "terms": [
+    { "term": "SSRF", "def": "Making a server fetch a URL you choose, so it reaches internal systems on your behalf.", "use": "The SSRF hit the metadata endpoint and leaked cloud keys." },
+    { "term": "Path traversal", "def": "Using ../ sequences to escape the intended folder and read other files.", "use": "A simple path traversal pulled back /etc/passwd." },
+    { "term": "LFI", "def": "Local File Inclusion: when the server reads or includes a local file whose path you control.", "use": "The LFI let us read the app's database config." },
+    { "term": "Web shell", "def": "A malicious script uploaded to a server that runs commands when you visit it.", "use": "They dropped a web shell through the avatar upload." },
+    { "term": "Command injection", "def": "Smuggling extra operating-system commands into input the server runs in a shell.", "use": "The ping tool was vulnerable to command injection." },
+    { "term": "Metadata service", "def": "A hidden internal cloud endpoint (169.254.169.254) that returns instance secrets and credentials.", "use": "SSRF plus the metadata service is a classic cloud takeover." },
+    { "term": "Least privilege", "def": "Running a service with only the minimum permissions it needs, so a breach does less damage.", "use": "Least privilege meant the injected command could not read other users' files." }
+  ],
+  "quiz": [
+    {
+      "q": "What makes the cloud metadata endpoint such a prize in an SSRF attack?",
+      "options": [
+        "It hosts the company website",
+        "It returns temporary credentials and secrets to whoever the server asks on its behalf",
+        "It is the only HTTPS endpoint",
+        "It stores user passwords in plaintext"
+      ],
+      "answer": 1,
+      "why": "The metadata service hands out instance credentials, so an SSRF that reaches it can escalate to full cloud access."
+    },
+    {
+      "q": "In a path like /files/../../../etc/passwd, what does ../ do?",
+      "options": [
+        "Comments out the rest of the path",
+        "Encrypts the filename",
+        "Moves up one directory level, letting you escape the intended folder",
+        "Runs a system command"
+      ],
+      "answer": 2,
+      "why": "../ steps up a directory, so chaining it climbs toward the root and reaches files outside the allowed folder."
+    },
+    {
+      "q": "Why is a file upload feature potentially dangerous?",
+      "options": [
+        "Files take up disk space",
+        "A saved file may later be executed by the server, giving a web shell",
+        "Uploads slow the network",
+        "It reveals the server's IP"
+      ],
+      "answer": 1,
+      "why": "If an uploaded script lands in an executable web folder, visiting it runs attacker code as the server."
+    },
+    {
+      "q": "Why does `8.8.8.8; cat /etc/passwd` work against a vulnerable ping tool?",
+      "options": [
+        "The semicolon chains a second shell command after ping",
+        "cat is a built-in ping option",
+        "The IP is invalid so the server panics",
+        "It forces an HTTPS downgrade"
+      ],
+      "answer": 0,
+      "why": "The shell treats ; as a separator, so it runs the injected command after the intended one."
+    },
+    {
+      "q": "What is the strongest fix for OS command injection?",
+      "options": [
+        "Hide the input field",
+        "Use a longer password",
+        "Avoid the shell; pass arguments as an array and allow-list valid input",
+        "Switch to HTTP/2"
+      ],
+      "answer": 2,
+      "why": "Not invoking a shell removes the separator problem, and allow-listing confines input to safe values."
+    }
+  ],
+  "talk": {
+    "scenario": "A developer says: 'Our image-preview feature just fetches whatever URL the user pastes. Is that a problem?'",
+    "model": "Yes, that is textbook SSRF. Because the server makes the request, a user can point it at internal addresses like localhost or the cloud metadata service and pull back secrets your browser could never reach. We should allow-list only approved external image hosts, block link-local and private IP ranges, reject non-image responses, and move the metadata service to token-based IMDSv2. The underlying rule for today's whole class of bugs is that any user value that becomes a URL, a file path, or a shell command must be strictly validated before it touches the operating system."
+  },
+  "reflect": "Pick one web feature you have built or used that takes a URL, a filename, or a command. Walk through where that input eventually goes. What could an attacker reach if they fully controlled it?"
+}

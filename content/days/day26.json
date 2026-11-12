@@ -1,0 +1,191 @@
+{
+  "day": 26,
+  "week": 5,
+  "title": "Switching Sides: Thinking Like a Defender",
+  "theme": "Blue Team & Detection",
+  "minutes": 50,
+  "mindset": "Every attacker action leaves a footprint; the defender's job is to know where to look and notice it in time.",
+  "cards": [
+    {
+      "title": "Red, blue and purple",
+      "body": "The **red team** plays the attacker. The **blue team** defends: monitoring, detecting, responding. A **purple team** is both working together, so each attack the red team tries becomes a new detection for the blue team. Picture a football coach running the opponent's plays in practice so the defence learns to read them. Knowing offence makes you a better defender, because you know which footprints attackers cannot avoid leaving."
+    },
+    {
+      "title": "Logs: the security camera footage",
+      "body": "A **log** is a written record of events: 'user anna logged in at 09:02 from 10.0.0.5', 'web request for /admin returned 403'. Logs come from servers, firewalls, laptops, cloud accounts and apps. On Kali, `journalctl` reads the system journal. Logs are like CCTV in a shop: useless if nobody watches, the camera is off, or the tape is overwritten after an hour. Attackers know this, so a common move is to clear or disable logs, which is itself a loud signal."
+    },
+    {
+      "title": "SIEM: one control room for all cameras",
+      "body": "A **SIEM** (Security Information and Event Management, say 'sim') collects logs from everywhere into one searchable place, lines them up by time, and raises **alerts** when rules match. Examples: Splunk, Microsoft Sentinel, Elastic Security, Wazuh (free). It is the security guard's control room with every camera on one wall. The hard part is not collecting data, it is tuning rules so the guard is not drowning in **false positives** (alarms for harmless things), which causes **alert fatigue**."
+    },
+    {
+      "title": "IDS and IPS: Snort and Suricata",
+      "body": "An **IDS** (Intrusion Detection System) watches network traffic and raises an alarm when it matches a known bad pattern, called a **signature**. An **IPS** (Intrusion Prevention System) can also block it. **Snort** and **Suricata** are popular free engines; both use rules like 'alert if a response contains the text uid=0(root)'. It is like a mail sorter who flags any parcel that smells of gunpowder. Attackers try to dodge signatures by encrypting traffic or changing their tools slightly."
+    },
+    {
+      "title": "The Cyber Kill Chain",
+      "body": "Lockheed Martin's **Cyber Kill Chain** splits an attack into seven stages: Reconnaissance, Weaponization, Delivery, Exploitation, Installation, Command and Control, Actions on Objectives. Like a bank robbery: case the bank, buy tools, drive there, break in, set up inside, radio the getaway driver, grab the money. The defender's insight: **break any link and the robbery fails**. Catching an attacker at Delivery is much cheaper than at Actions on Objectives."
+    },
+    {
+      "title": "MITRE ATT&CK: the attacker's playbook catalogue",
+      "body": "**MITRE ATT&CK** is a free public catalogue of real attacker behaviour. **Tactics** are the goals ('Initial Access', 'Persistence', 'Credential Access'). **Techniques** are how they do it, each with an ID, e.g. **T1566 Phishing** or **T1003 OS Credential Dumping**. It is a shared dictionary, like medical codes for diseases, so a report saying 'T1059 observed' means the same thing everywhere. Teams map their detections onto ATT&CK to see which techniques they would miss."
+    },
+    {
+      "title": "Detection engineering",
+      "body": "**Detection engineering** is writing and testing the rules that turn raw logs into useful alerts. A good detection targets behaviour attackers cannot easily change, not a single file hash they can swap in seconds. The **Pyramid of Pain** explains this: blocking a hash annoys attackers a little; detecting their techniques (TTPs) hurts a lot. **Sigma** is a common open format for writing a detection once and converting it for many SIEMs. Every rule needs a test: run the attack in a lab, confirm the alert fires."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Defense evasion: clearing logs",
+      "analogy": "A burglar who sprays paint over the security camera on the way out.",
+      "how": [
+        "Attacker gains admin rights on a machine.",
+        "Deletes or clears local logs (e.g. Windows Security log, Linux journal) or stops the logging service.",
+        "Hopes nobody can reconstruct what they did."
+      ],
+      "thinking": "If evidence lives only on the machine I control, I can erase it. Is anything shipping these logs somewhere else?",
+      "signs": "Windows Event ID 1102 ('audit log was cleared'), sudden gaps in a host's logs, logging service stopped, a host that goes quiet in the SIEM.",
+      "defend": "Forward logs in real time to a central SIEM the host cannot modify, alert on log clearing and on hosts that stop reporting, restrict who can manage logging (ATT&CK T1070 Indicator Removal)."
+    },
+    {
+      "name": "Living off the land",
+      "analogy": "A thief who uses the house's own ladder and tools, so nothing they carry in looks suspicious.",
+      "how": [
+        "Attacker avoids custom malware that antivirus might catch.",
+        "Uses built-in admin tools such as PowerShell, WMI, certutil or ssh to move and run commands.",
+        "Activity looks like normal IT admin work."
+      ],
+      "thinking": "Signatures catch strange files. If I only use tools that are supposed to be there, the defender must judge behaviour, not files.",
+      "signs": "Admin tools used by unusual accounts or at unusual hours, encoded PowerShell command lines, Office apps spawning shells, tools downloading files from the internet.",
+      "defend": "Log process creation with full command lines (Sysmon, auditd), build behaviour-based detections, restrict scripting tools to the people who need them, use EDR."
+    }
+  ],
+  "story": {
+    "title": "Target data breach (2013)",
+    "body": "Attackers entered Target's network using credentials stolen from a refrigeration contractor, then installed memory-scraping malware on point-of-sale terminals, stealing about 40 million payment cards. A US Senate committee report found that Target's FireEye malware-detection tool had raised alerts, and its Bangalore monitoring team had escalated them, but the alerts were not acted on in time. The technology worked; the response process did not. Lesson: a detection is only valuable if someone triages it and acts. Alert fatigue and unclear ownership can turn a caught attack into a breach."
+  },
+  "lab": {
+    "title": "Read your own logs and trigger a safe IDS alert",
+    "goal": "Find login events in your Kali journal, then replay a packet capture through Suricata and read the alert it produces.",
+    "steps": [
+      "Look at today's authentication events on your own Kali machine.",
+      "Install Suricata and download its free ruleset.",
+      "Capture your own traffic while requesting testmynids.org, a site made to trigger a harmless IDS signature.",
+      "Run Suricata over the capture and read the alert log.",
+      "Look up which MITRE ATT&CK tactic the alert relates to and write one sentence explaining it."
+    ],
+    "commands": [
+      {
+        "cmd": "sudo journalctl _COMM=sudo --since today",
+        "explain": "`journalctl` reads the system journal. `_COMM=sudo` filters to events from the sudo program (who ran admin commands); `--since today` limits the time range."
+      },
+      {
+        "cmd": "sudo apt update && sudo apt install -y suricata jq && sudo suricata-update",
+        "explain": "Installs the Suricata IDS and `jq` (a JSON reader). `suricata-update` downloads the free Emerging Threats ruleset."
+      },
+      {
+        "cmd": "sudo timeout 15 tcpdump -i any -w nids.pcap port 80",
+        "explain": "Records web traffic on all interfaces into `nids.pcap` for 15 seconds. Run the next command in a second terminal during this time."
+      },
+      {
+        "cmd": "curl http://testmynids.org/uid/index.html",
+        "explain": "Fetches a test page whose content looks like the output of the `id` command as root. It is harmless but matches a classic IDS signature."
+      },
+      {
+        "cmd": "mkdir -p out && sudo suricata -r nids.pcap -l out/ && jq 'select(.event_type==\"alert\") | .alert.signature' out/eve.json",
+        "explain": "`-r` makes Suricata read a saved capture instead of live traffic; `-l` sets the log folder. `jq` then prints only the alert names from `eve.json`, Suricata's JSON log."
+      }
+    ],
+    "safety": "Only capture traffic on your own machine and network. testmynids.org exists to trigger IDS rules safely. Do not capture traffic on shared, work or public networks without written permission."
+  },
+  "hunt": "A company's SIEM shows: at 02:14 an account `svc_backup` logs into a file server via RDP from a staff laptop. At 02:20 the Security log on that server is cleared. At 02:31 the server sends 18 GB to an unfamiliar cloud storage IP. No alert fired because each event alone matched no rule. What is wrong?\n\nAnswer: A service account should not do interactive RDP logins, log clearing (Event ID 1102) should always alert, and large outbound transfers at night are abnormal. Individually each is weak; together they form a kill chain (lateral movement, defense evasion, exfiltration). The fix is **correlation rules** that link events by host and account over a time window, plus alerting on each high-signal event on its own.",
+  "terms": [
+    {
+      "term": "SIEM",
+      "def": "A central system that collects, searches and correlates logs from many sources and raises alerts.",
+      "use": "\"Is the VPN appliance forwarding to the SIEM, or are we blind there?\""
+    },
+    {
+      "term": "IDS / IPS",
+      "def": "Tools that inspect network traffic for known attack patterns; an IDS alerts, an IPS can also block.",
+      "use": "\"Suricata flagged an exploit attempt but it's in IDS mode, so nothing was blocked.\""
+    },
+    {
+      "term": "False positive",
+      "def": "An alert that fires on something harmless.",
+      "use": "\"That rule has a 90% false-positive rate; we need to tune it before analysts stop reading it.\""
+    },
+    {
+      "term": "MITRE ATT&CK",
+      "def": "A public knowledge base of real attacker tactics and techniques, each with an ID.",
+      "use": "\"Let's map our detections to ATT&CK and see where our coverage gaps are.\""
+    },
+    {
+      "term": "TTPs",
+      "def": "Tactics, Techniques and Procedures: how an attacker behaves, as opposed to the specific files or IPs they use.",
+      "use": "\"IPs change daily, so we hunt on the group's TTPs instead.\""
+    },
+    {
+      "term": "SOC",
+      "def": "Security Operations Centre: the team that monitors alerts and responds to incidents, often 24/7.",
+      "use": "\"The SOC triaged the alert within ten minutes and isolated the host.\""
+    },
+    {
+      "term": "Triage",
+      "def": "Quickly deciding whether an alert is real and how urgent it is, like a hospital emergency desk.",
+      "use": "\"During triage I checked whether the login IP matched the user's usual location.\""
+    }
+  ],
+  "quiz": [
+    {
+      "q": "According to the Pyramid of Pain, which is hardest for an attacker to change?",
+      "options": [
+        "File hashes",
+        "IP addresses",
+        "TTPs (their behaviour)",
+        "Domain names"
+      ],
+      "answer": 2,
+      "why": "Changing how you operate means retooling and retraining; swapping a hash or IP takes seconds."
+    },
+    {
+      "q": "What is the main purpose of a SIEM?",
+      "options": [
+        "Encrypt network traffic",
+        "Collect and correlate logs from many sources and alert on suspicious patterns",
+        "Patch servers automatically",
+        "Scan for open ports"
+      ],
+      "answer": 1,
+      "why": "A SIEM centralises and correlates logs so analysts can detect and investigate across systems."
+    },
+    {
+      "q": "In the Cyber Kill Chain, why do defenders want to stop attacks early?",
+      "options": [
+        "Breaking any earlier link stops later stages, and it costs less damage",
+        "Late stages cannot be detected",
+        "The law requires it",
+        "Early stages are always encrypted"
+      ],
+      "answer": 0,
+      "why": "Each stage depends on the last; stopping Delivery prevents Exploitation, C2 and data theft."
+    },
+    {
+      "q": "Why are logs forwarded off the host to a central server?",
+      "options": [
+        "To save disk space only",
+        "Because local logs are unreadable",
+        "Because SIEMs are faster than grep",
+        "So an attacker with admin rights on the host cannot erase the evidence"
+      ],
+      "answer": 3,
+      "why": "Clearing local logs is a common evasion technique; a remote copy preserves the trail."
+    }
+  ],
+  "talk": {
+    "scenario": "A new colleague asks: 'What's the difference between the Kill Chain and MITRE ATT&CK? Aren't they the same thing?'",
+    "model": "They complement each other. The Kill Chain is a high-level, seven-stage story of an intrusion, useful for explaining where we can break an attack. ATT&CK is a detailed catalogue of the actual tactics and techniques attackers use, each with an ID like T1566 for phishing. In the SOC we use ATT&CK to map our detections and find coverage gaps, and the Kill Chain to explain to management how far an attacker got."
+  },
+  "reflect": "Pick one attack you learned this month. Which log would show it, and what exact pattern would you write a detection for?"
+}

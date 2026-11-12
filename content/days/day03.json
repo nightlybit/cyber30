@@ -1,0 +1,134 @@
+{
+  "day": 3,
+  "week": 1,
+  "title": "Who Holds Which Keys?",
+  "theme": "Linux Users, Permissions & Processes",
+  "minutes": 50,
+  "mindset": "Breaking in is only the start; attackers immediately ask 'who am I here, and how do I become someone more powerful?'",
+  "cards": [
+    {
+      "title": "Users and groups",
+      "body": "Linux is built for many people sharing one machine, like an office building. Each person gets a **user account** with a number (the **UID**). **root** is UID 0: the building owner with a master key to every room.\n\nUsers belong to **groups**, like departments. Give the 'finance' group access to a folder and everyone in finance can open it.\n\nServices also get their own accounts, such as `www-data` for the web server. That way, if the web server is hacked, the intruder holds only a cleaner's key, not the owner's. Run `id` to see your UID and groups."
+    },
+    {
+      "title": "Where accounts live",
+      "body": "`/etc/passwd` lists every account: name, UID, home folder and shell. Despite the name, it no longer holds passwords and anyone can read it.\n\nThe real password **hashes** (scrambled fingerprints of passwords, covered on Day 12) live in `/etc/shadow`, which only root can read.\n\nWhy attackers care: reading `/etc/passwd` tells them which real users exist to target. Reading `/etc/shadow` lets them try to crack passwords offline. If `/etc/shadow` is ever readable by normal users, that is a serious finding."
+    },
+    {
+      "title": "Reading permissions: rwx",
+      "body": "Run `ls -l` and you see something like `-rwxr-x---`. Skip the first character (file type) and read three groups of three:\n\n- **Owner**: `rwx` = read, write, execute.\n- **Group**: `r-x` = read and execute, no write.\n- **Others** (everyone else): `---` = nothing.\n\nAs numbers, r=4, w=2, x=1, so this is **750**. `chmod 600 key.txt` means only the owner can read and write it.\n\nThink of a shared fridge: the owner can eat and restock, flatmates can look, visitors cannot open it at all."
+    },
+    {
+      "title": "SUID: borrowing the owner's power",
+      "body": "Some programs need to do admin jobs for ordinary users. `passwd` lets you change *your* password, which means writing to root-only `/etc/shadow`. The trick is the **SUID bit** (Set User ID): an `s` where the owner's `x` would be, e.g. `-rwsr-xr-x root`. It means 'whoever runs this, it runs as the file's owner'.\n\nIt is like a valet key: limited power, lent safely. But if a SUID-root program can be tricked into opening a shell or editing any file, the visitor suddenly holds the master key. Attackers always list SUID files."
+    },
+    {
+      "title": "sudo: controlled promotion",
+      "body": "`sudo` (superuser do) lets permitted users run a command as root after typing *their own* password. Rules live in `/etc/sudoers`, edited safely with `visudo`.\n\n`sudo -l` shows what *you* are allowed to run. A rule like 'user may run `vim` as root' looks harmless, but vim can launch a shell, and that shell is root. Same for `less`, `find`, `python` and many more.\n\nThe website **GTFOBins** documents how common programs can be abused this way. Attackers check `sudo -l` within minutes of landing."
+    },
+    {
+      "title": "Processes and services",
+      "body": "A **process** is a program that is currently running, each with an ID number (**PID**) and an owner. `ps aux` lists them all; `top` shows them live.\n\nA **service** (or **daemon**) is a process that runs in the background waiting for work, like a receptionist at a desk: the SSH server, the web server, the database. On Kali, `systemctl` starts, stops and checks them.\n\nAttackers look for services running as root, because a bug in a root service gives root access. They also check which services listen on the network."
+    },
+    {
+      "title": "Least privilege",
+      "body": "The **principle of least privilege** says: give every user and program the minimum access it needs, and nothing more. A hotel cleaner's card opens guest rooms on one floor, not the safe.\n\nWhy it matters: breaches rarely stop at the first foothold. Attackers chain small permissions into big ones, a move called **privilege escalation**. Every unnecessary SUID file, broad sudo rule or service running as root is a ladder rung for them. Least privilege makes each break-in a dead end instead of a stepping stone."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "SUID binary abuse",
+      "analogy": "A valet is given the car key to park your car, and a con artist convinces him to drive them home instead.",
+      "how": [
+        "The attacker, as a low-privilege user, lists SUID files with `find / -perm -4000 -type f 2>/dev/null`.",
+        "They compare the list against normal system files and check unusual ones on GTFOBins.",
+        "If a SUID-root program can spawn a shell or write files (for example a SUID copy of `find` or `bash`), they use it to get a root shell."
+      ],
+      "thinking": "SUID programs run as root no matter who starts them. Which of these was added by an admin as a shortcut, and can it do more than they intended?",
+      "signs": "New SUID files appearing (file integrity monitoring), shells whose parent is an unusual SUID program, effective UID 0 from a normal user session in audit logs.",
+      "defend": "Audit SUID files regularly and remove the bit where not needed (`chmod u-s file`), mount data partitions with `nosuid`, and patch SUID programs quickly."
+    },
+    {
+      "name": "Sudo misconfiguration",
+      "analogy": "You give a friend permission to use your car 'only to buy groceries', but never say they cannot drive to the airport.",
+      "how": [
+        "The attacker runs `sudo -l` to see allowed commands.",
+        "They find a rule allowing a program that has an escape hatch, such as `less`, `vim`, `find` or a script they can edit.",
+        "They use that escape hatch (e.g. `sudo find . -exec /bin/sh \\; -quit`) to get a root shell."
+      ],
+      "thinking": "Admins write sudo rules for convenience. Does any allowed program let me run other commands, read any file, or edit something root will execute?",
+      "signs": "sudo logs in `/var/log/auth.log` or the journal showing allowed programs followed by root shells, or unusual arguments like `-exec`.",
+      "defend": "Grant sudo only for specific, safe commands with fixed arguments, never editors, pagers or interpreters; avoid NOPASSWD; review sudoers files regularly."
+    }
+  ],
+  "story": {
+    "title": "Baron Samedit sudo bug (2021)",
+    "body": "In January 2021 researchers at Qualys disclosed **CVE-2021-3156**, nicknamed Baron Samedit, a heap buffer overflow in **sudo** itself. Any local user, even one not listed in sudoers, could exploit it to become root on default installs of major Linux distributions. The bug had been in the code for almost ten years. **Lesson:** the tools that guard privilege are themselves code and can fail. Defence in depth matters: keep attackers from getting even a low-level foothold, patch privileged programs fast, and never assume 'they are only a normal user' means safe."
+  },
+  "lab": {
+    "title": "Map your own privilege landscape",
+    "goal": "Read permissions, find SUID files, check sudo rights and list running services on your own Kali machine.",
+    "steps": [
+      "Run `id` and note your UID and groups.",
+      "Compare permissions on /etc/passwd and /etc/shadow and explain why they differ.",
+      "List SUID files. Pick three you do not recognise and look them up on gtfobins.github.io.",
+      "Check your own sudo rights and list running services. Which run as root?"
+    ],
+    "commands": [
+      { "cmd": "id", "explain": "Shows your user ID, main group, and every group you belong to. Membership in `sudo` means you can become root." },
+      { "cmd": "ls -l /etc/passwd /etc/shadow", "explain": "Long listing of both files. passwd is readable by everyone (`-rw-r--r--`); shadow is root-only, with group `shadow` allowed to read." },
+      { "cmd": "find / -perm -4000 -type f 2>/dev/null", "explain": "Searches the whole disk for regular files with the SUID bit set (`-perm -4000`) and hides permission errors." },
+      { "cmd": "sudo -l", "explain": "Lists exactly what sudo will let your account run, and whether a password is needed." },
+      { "cmd": "ps aux --sort=-%cpu | head", "explain": "Lists all processes with their owner (`aux`), sorted by CPU use, showing the top 10 lines." },
+      { "cmd": "systemctl list-units --type=service --state=running", "explain": "Shows background services currently running on your machine." }
+    ],
+    "safety": "Run these only on your own Kali machine or a practice VM. Do not attempt privilege escalation on shared, school or work computers without written permission."
+  },
+  "hunt": "An admin wants junior staff to restart the web server without giving them full root. They add this sudoers line: `juniors ALL=(root) NOPASSWD: /usr/bin/vim /etc/nginx/nginx.conf, /usr/bin/systemctl restart nginx`. They also run `chmod 777 /opt/backup.sh`, a script root runs every night. What is wrong?\n\nAnswer: vim run as root can open a root shell with `:!/bin/sh`, so juniors effectively have full root, with no password. And `777` means anyone can edit backup.sh; since root runs it nightly, any user can insert commands that run as root. Fix: use `sudoedit` for config changes, keep the systemctl rule, and set the script to `root:root` with `700` or `755`.",
+  "terms": [
+    { "term": "Privilege escalation", "def": "Turning limited access into more powerful access, such as going from a normal user to root.", "use": "Initial access was www-data; we got privesc to root via a writable cron script." },
+    { "term": "SUID", "def": "A permission bit that makes a program run with its owner's rights instead of the caller's.", "use": "There's a custom SUID binary in /usr/local/bin, that's worth a look." },
+    { "term": "sudo", "def": "A command that lets approved users run specific commands as root, logged and controlled by rules.", "use": "First thing after landing, run sudo -l and check anything allowed against GTFOBins." },
+    { "term": "Least privilege", "def": "Giving each user or program only the access it truly needs.", "use": "If the app had followed least privilege, the breach would have stopped at the web user." },
+    { "term": "Daemon", "def": "A background program that runs as a service, waiting for work.", "use": "The SSH daemon is running as root, as expected, but it's exposed to the whole internet." },
+    { "term": "chmod", "def": "The command that changes a file's read, write and execute permissions.", "use": "Someone chmod 777'd the uploads folder, so anyone on the box can write there." },
+    { "term": "GTFOBins", "def": "A public list of normal Unix programs that can be abused to escape restrictions or escalate privileges.", "use": "Less is on GTFOBins, so that sudo rule is effectively a root shell." }
+  ],
+  "quiz": [
+    {
+      "q": "What does the permission `-rw-------` mean?",
+      "options": ["Everyone can read it", "Only the owner can read and write it", "It is SUID", "Only root can run it"],
+      "answer": 1,
+      "why": "The owner has rw, while group and others have nothing. In numbers that is 600, typical for private keys."
+    },
+    {
+      "q": "Why is an unusual SUID-root program interesting to an attacker?",
+      "options": ["It runs with root's power whoever starts it", "It is always a virus", "It is hidden from ps", "It deletes logs"],
+      "answer": 0,
+      "why": "SUID makes the program run as its owner. If that is root and the program can be tricked, the attacker gains root."
+    },
+    {
+      "q": "Which file holds password hashes on modern Linux?",
+      "options": ["/etc/passwd", "/etc/group", "/etc/sudoers", "/etc/shadow"],
+      "answer": 3,
+      "why": "/etc/shadow stores hashes and is readable only by root (and the shadow group); /etc/passwd lists accounts only."
+    },
+    {
+      "q": "`sudo -l` shows a user may run `/usr/bin/less /var/log/syslog` as root. What is the risk?",
+      "options": ["None, less only reads files", "The log might be deleted", "less can open a shell, which would run as root", "It uses too much memory"],
+      "answer": 2,
+      "why": "From inside less you can type `!sh` to start a shell. Run via sudo, that shell is root."
+    },
+    {
+      "q": "Which best describes the principle of least privilege?",
+      "options": ["Give admins all access", "Give every account the minimum access it needs", "Disable all users", "Use the shortest passwords"],
+      "answer": 1,
+      "why": "Least privilege limits what an attacker gains from any single compromised account or program."
+    }
+  ],
+  "talk": {
+    "scenario": "A developer asks: 'Why can't the app just run as root? It saves us permission headaches.'",
+    "model": "Running as root means any bug in the app becomes full control of the server, including other apps, logs and stored credentials. Following least privilege, the app should run as its own service account that can only read its code and write to its data folder. Then if someone finds an injection flaw, they still need a separate privilege escalation to go further, which buys us time and detection chances. The permission headaches are cheaper than a full compromise."
+  },
+  "reflect": "Think of the accounts you use daily (phone, laptop, work tools). Where do you have more privilege than you actually need, and what would an attacker gain if they stole that account?"
+}

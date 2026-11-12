@@ -1,0 +1,128 @@
+{
+  "day": 5,
+  "week": 1,
+  "title": "What Really Happens When You Click",
+  "theme": "Web Fundamentals",
+  "minutes": 55,
+  "mindset": "A website is just text messages between your browser and a server, and anything your browser sends, an attacker can change.",
+  "cards": [
+    {
+      "title": "DNS: the internet's phone book",
+      "body": "Computers talk using IP addresses, but humans remember names. **DNS** (Domain Name System) translates `example.com` into an IP address, like looking up a name in a phone book.\n\nYour computer asks a **resolver** (usually your ISP's or one like 1.1.1.1), which asks other DNS servers until it finds the answer. Common record types: **A** (IPv4 address), **AAAA** (IPv6), **MX** (mail server), **CNAME** (alias), **TXT** (notes, often used for verification).\n\nAttackers read DNS to map a company's servers, and poison DNS to send victims to fake sites."
+    },
+    {
+      "title": "HTTP requests: ordering at a counter",
+      "body": "When you load a page, your browser sends an **HTTP request**, like an order slip at a restaurant counter:\n\n`GET /menu?item=5 HTTP/1.1`\n`Host: shop.example`\n`Cookie: session=abc123`\n\nThe **method** says what you want: **GET** fetches something, **POST** submits data like a login form. The **path** and **parameters** (`?item=5`) say which thing. **Headers** add details: who you are, which browser, which language.\n\nKey insight: the browser fills this slip in, but the customer holds the pen. Tools like curl or Burp let you write any slip you like."
+    },
+    {
+      "title": "HTTP responses: what comes back",
+      "body": "The server answers with a **status code**, headers and a body (usually HTML):\n\n- **200** OK: here you go.\n- **301/302** Redirect: go over there instead.\n- **401** Unauthorized: log in first. **403** Forbidden: you are logged in but not allowed.\n- **404** Not Found.\n- **500** Internal Server Error: something broke on the server.\n\nAttackers read responses closely. A `500` after typing a strange character suggests the input reached something fragile, like a database. Headers such as `Server: Apache/2.4.29` leak software versions to look up."
+    },
+    {
+      "title": "Cookies: the cloakroom ticket",
+      "body": "HTTP has no memory: every request is a stranger. So after you log in, the server hands your browser a **cookie**, a small token like a cloakroom ticket. Your browser shows it with every request, and the server recognises you.\n\nThat means **the cookie is your identity**. Whoever holds the ticket gets the coat. Steal a session cookie and you are logged in as that person, no password needed.\n\nGood cookies have flags: **HttpOnly** (JavaScript cannot read it), **Secure** (only sent over HTTPS) and **SameSite** (not sent with requests from other sites)."
+    },
+    {
+      "title": "HTTPS and TLS: the sealed envelope",
+      "body": "Plain HTTP is a postcard: every router and Wi-Fi hotspot along the way can read and alter it. **HTTPS** is HTTP wrapped in **TLS** (Transport Layer Security), which gives:\n\n- **Encryption**: an envelope only the two ends can open.\n- **Integrity**: tampering is detected.\n- **Authentication**: a **certificate**, signed by a trusted **Certificate Authority**, proves the server really is `bank.com`.\n\nImportant: the padlock only means the *connection* is private. A phishing site can have a perfectly valid padlock, and HTTPS does nothing to stop bugs in the website itself."
+    },
+    {
+      "title": "Client vs server: who do you trust?",
+      "body": "The **client** is your browser; the **server** runs the website. Anything on the client side, such as hidden form fields, JavaScript checks, disabled buttons and prices in the page, is under the user's control.\n\nImagine a shop that lets customers write their own price on the receipt and only checks the handwriting. That is a site that trusts `price=49.99` sent from the browser.\n\nThe golden rule of web security: **never trust the client**. Every check that matters must happen again on the server. Attackers test exactly this, all day long."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Session hijacking via stolen cookie",
+      "analogy": "Someone photographs your cloakroom ticket, makes a copy, and collects your coat before you do.",
+      "how": [
+        "The victim logs in and receives a session cookie.",
+        "The attacker obtains it: sniffing plain HTTP on shared Wi-Fi, a cross-site scripting bug that reads `document.cookie`, or malware on the victim's computer.",
+        "The attacker puts the cookie in their own browser and the site treats them as the victim."
+      ],
+      "thinking": "The site checks the password only once, then trusts the ticket forever. Can I get the ticket instead of the password? Is it missing HttpOnly or Secure? Does it ever expire?",
+      "signs": "The same session used from two different IP addresses or countries at once, sudden change of browser fingerprint mid-session, logins that skip the login page.",
+      "defend": "HTTPS everywhere with HSTS, cookies set with HttpOnly, Secure and SameSite, short session lifetimes, new session ID after login, and re-authentication for sensitive actions."
+    },
+    {
+      "name": "Parameter tampering",
+      "analogy": "Changing the number on your restaurant order slip from 'table 4' to 'table 9' and getting another table's bill.",
+      "how": [
+        "The attacker notices values in requests, such as `?account=1042`, `price=49.99` or a hidden field `role=user`.",
+        "They resend the request with changed values using the browser tools, curl or a proxy.",
+        "If the server does not re-check, they see others' data, pay less, or gain higher roles."
+      ],
+      "thinking": "This number came from my browser. What happens if I change it? Does the server actually check that this account is mine?",
+      "signs": "One user requesting many sequential IDs, prices or roles in requests that do not match what the UI allows, server-side validation errors spiking.",
+      "defend": "Validate everything on the server, look up prices and permissions from the server's own records, and check ownership on every request."
+    }
+  ],
+  "story": {
+    "title": "Heartbleed (2014)",
+    "body": "In April 2014 researchers disclosed **Heartbleed** (CVE-2014-0160), a bug in **OpenSSL**, the library that provided TLS for a huge share of HTTPS websites. A 'heartbeat' feature let a client say 'send back these 5 letters, which are 500 long'. OpenSSL trusted the stated length and returned extra server memory, up to 64KB per request, possibly containing passwords, session cookies or even the server's private key. It left no normal log trace. **Lesson:** HTTPS is only as strong as the code implementing it, and trusting a length sent by the client is the same 'never trust the client' mistake in a different place."
+  },
+  "lab": {
+    "title": "Speak HTTP by hand",
+    "goal": "Look up DNS records, read raw HTTP requests and responses, and inspect a TLS certificate from your terminal.",
+    "steps": [
+      "Use dig to look up the address and name servers of example.com (a domain reserved for documentation).",
+      "Use curl in verbose mode to see the exact request your machine sends and the response headers it gets back.",
+      "Inspect example.com's TLS certificate: who issued it and when does it expire?",
+      "In Firefox, press F12, open the Network tab, load any site you use and click a request. Find the method, status code and cookies."
+    ],
+    "commands": [
+      { "cmd": "dig example.com A +short", "explain": "Asks DNS for the IPv4 address (A record) of example.com; `+short` prints only the answer." },
+      { "cmd": "dig example.com NS", "explain": "Asks which name servers are responsible for the domain. Recon tip: this tells you who hosts a company's DNS." },
+      { "cmd": "curl -v http://example.com", "explain": "Fetches the page verbosely: lines starting `>` are your request, `<` are the server's response headers." },
+      { "cmd": "curl -I https://example.com", "explain": "Sends a HEAD request (`-I`), returning only the status code and headers, over HTTPS." },
+      { "cmd": "echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null | openssl x509 -noout -subject -issuer -dates", "explain": "Opens a TLS connection, grabs the server certificate, then prints who it belongs to, who signed it, and its valid dates." }
+    ],
+    "safety": "These are ordinary requests any browser makes, sent to example.com, a domain reserved for documentation. Never alter requests to sites you don't own; practise tampering only in labs like PortSwigger Web Security Academy."
+  },
+  "hunt": "An online shop's checkout page sends this request when you click Buy:\n`POST /checkout`\n`item=1337&qty=1&price=899.00&discount=0`\nThe site runs on HTTPS and the cookie has HttpOnly and Secure set. The developer says: 'It's secure, we have a padlock and safe cookies.' What is wrong?\n\nAnswer: The price and discount are sent by the client, so anyone can change them with curl or a proxy to `price=1.00` or `discount=100`. HTTPS only protects the request in transit; it does not stop the user from editing it before it leaves. The server must look up the price from its own database and validate any discount code itself.",
+  "terms": [
+    { "term": "DNS", "def": "The system that turns names like example.com into IP addresses.", "use": "Their DNS records show a dev subdomain pointing to an old server, that's interesting." },
+    { "term": "HTTP method", "def": "The verb of a web request, such as GET to fetch or POST to submit data.", "use": "The endpoint rejects GET but happily accepts the same change via POST with no checks." },
+    { "term": "Status code", "def": "A three-digit number in a response saying what happened, like 200 OK or 404 Not Found.", "use": "We got a 500 when adding a quote mark, so the input probably reaches the database." },
+    { "term": "Session cookie", "def": "A token the server gives your browser after login so it remembers who you are.", "use": "The session cookie is missing HttpOnly, so any XSS would let us steal it." },
+    { "term": "TLS", "def": "The encryption layer that turns HTTP into HTTPS, keeping traffic private and tamper-proof.", "use": "They still allow TLS 1.0 on the legacy portal, which is a finding." },
+    { "term": "Client-side validation", "def": "Checks done in the user's browser, which the user can bypass. Helpful for usability, useless for security.", "use": "The 10-item limit is only client-side validation; the API accepts a thousand." }
+  ],
+  "quiz": [
+    {
+      "q": "What does a session cookie effectively represent?",
+      "options": ["The website's logo", "Your logged-in identity", "Your IP address", "The server's certificate"],
+      "answer": 1,
+      "why": "The server uses the cookie to recognise you on every request, so whoever holds it is treated as you."
+    },
+    {
+      "q": "A website shows a valid HTTPS padlock. What does that guarantee?",
+      "options": ["The site is not a scam", "The site has no bugs", "Your connection to that site is encrypted", "The site cannot be hacked"],
+      "answer": 2,
+      "why": "TLS protects data in transit and proves the domain name; it says nothing about honesty or code quality."
+    },
+    {
+      "q": "Which cookie flag stops JavaScript from reading the cookie?",
+      "options": ["Secure", "SameSite", "Domain", "HttpOnly"],
+      "answer": 3,
+      "why": "HttpOnly hides the cookie from scripts, limiting theft through cross-site scripting."
+    },
+    {
+      "q": "Which DNS record type gives a domain's IPv4 address?",
+      "options": ["A", "MX", "TXT", "NS"],
+      "answer": 0,
+      "why": "A records map names to IPv4 addresses; MX is mail, NS is name servers, TXT is free text."
+    },
+    {
+      "q": "What was the root mistake behind Heartbleed?",
+      "options": ["A weak password", "Trusting a length value sent by the client", "An expired certificate", "Using HTTP instead of HTTPS"],
+      "answer": 1,
+      "why": "OpenSSL believed the client's claimed length and returned that much memory, leaking secrets."
+    }
+  ],
+  "talk": {
+    "scenario": "A product manager asks: 'We've got HTTPS and the price field is read-only in the form. Do we really need to validate prices on the server too?'",
+    "model": "Yes. HTTPS protects the request while it travels, but the user controls it before it's sent, and a read-only field is just a display hint in the browser. Anyone with curl or an intercepting proxy can change the price parameter in seconds. This is client-side validation only, so the server must look up the real price itself. It's a classic parameter-tampering finding in any pentest."
+  },
+  "reflect": "Pick a site you use every day. What information does your browser send it with each click, and which of those values would you be curious to change if you were testing it with permission?"
+}

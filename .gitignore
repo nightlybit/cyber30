@@ -1,0 +1,4 @@
+# Personal data: your progress database, private access key, threat cache
+data/
+__pycache__/
+*.pyc

@@ -1,0 +1,177 @@
+{
+  "day": 29,
+  "week": 5,
+  "title": "If It Isn't Written Down, It Didn't Happen",
+  "theme": "Reporting & Incident Response",
+  "minutes": 45,
+  "mindset": "A finding is only worth what the reader understands and fixes; your report is the real product, not the hack.",
+  "cards": [
+    {
+      "title": "Why the report is the product",
+      "body": "A client paying for a penetration test does not keep your shell; they keep your **report**. If a critical bug is explained badly, it will not be fixed, and the test was wasted. Think of a doctor: the scan is impressive, but the patient needs a clear diagnosis and a treatment plan. A good report serves two readers: **executives**, who decide budget and risk, and **engineers**, who need exact steps to reproduce and fix."
+    },
+    {
+      "title": "Structure of a pentest report",
+      "body": "Most professional reports follow a similar shape:\n1. **Executive summary**: plain-language risk, one page.\n2. **Scope and methodology**: what was tested, when, how, and what was not.\n3. **Findings summary**: a table by severity.\n4. **Detailed findings**: one per issue with description, impact, evidence, reproduction steps, remediation.\n5. **Appendices**: tools, raw output, references.\nLike a house survey: front page says 'roof needs urgent work', back pages show photos of every cracked tile."
+    },
+    {
+      "title": "Writing the executive summary",
+      "body": "Executives have five minutes and no jargon. Lead with **business risk**: 'An outside attacker could read every customer's payment history without logging in.' Not 'IDOR in /api/v2/invoices'. Give the overall picture, the top 3 issues, and what to do first. Avoid fear words and hacker bravado. Imagine explaining to a building owner why the fire exits matter, without mentioning the chemistry of combustion. Write it last, once you know the whole story."
+    },
+    {
+      "title": "Rating severity honestly",
+      "body": "**Severity** tells readers what to fix first. Many teams use **CVSS** (Common Vulnerability Scoring System, 0.0-10.0) as a base, mapped to Critical, High, Medium, Low, Informational. But context matters: a High bug on an isolated test server may matter less than a Medium on the payment system. Combine **likelihood** (how easy, how exposed) with **impact** (what is lost). Inflating severity destroys trust, like a weather forecaster who predicts hurricanes every week."
+    },
+    {
+      "title": "A good finding, piece by piece",
+      "body": "Each finding should answer:\n- **What** is wrong (title + description).\n- **Where** (exact URL, host, parameter).\n- **So what** (impact in business terms).\n- **Proof** (screenshot or request/response, with sensitive data redacted).\n- **How to reproduce** (numbered steps another person can follow).\n- **How to fix** (specific, practical, plus references like OWASP or CWE).\nThe test: could a developer who was not on the call fix it using only your write-up?"
+    },
+    {
+      "title": "Incident response: PICERL",
+      "body": "When an attack actually happens, teams follow a plan. SANS's six phases spell **PICERL**:\n- **Preparation**: plans, tools, contacts, practice.\n- **Identification**: is this really an incident? how big?\n- **Containment**: stop the spread (isolate hosts, disable accounts).\n- **Eradication**: remove the attacker and their footholds.\n- **Recovery**: restore safely and monitor.\n- **Lessons learned**: what to improve.\nLike firefighters: drills beforehand, confirm the fire, close doors, put it out, check for embers, review."
+    },
+    {
+      "title": "Evidence and chain of custody",
+      "body": "During testing or incidents, record **what you did, when, and from where**: timestamps (in UTC), commands, IPs, screenshots. Save raw tool output. In incidents, preserve evidence before cleaning: memory and disk images, logs. **Chain of custody** is the record of who handled evidence and when, so it holds up legally. Hash files (`sha256sum`) to prove they were not changed. It is the same reason police bag and label evidence at a crime scene."
+    }
+  ],
+  "attacks": [],
+  "story": {
+    "title": "Equifax breach (2017)",
+    "body": "In March 2017 a critical Apache Struts flaw (CVE-2017-5638) was published with a patch. Equifax's security team circulated an alert to patch it, but the vulnerable dispute portal was not identified or patched, and a scan meant to find it missed it. Attackers got in in mid-May and stayed about 76 days, partly unnoticed because an expired certificate had stopped traffic inspection on that network segment. About 147 million people's data was exposed. The US House report highlighted unclear ownership and poor communication. Lesson: findings and alerts must reach a named owner, with clear severity and deadlines, and be verified as fixed."
+  },
+  "lab": {
+    "title": "Produce a mini professional report",
+    "goal": "Log a short, legal scan as evidence and turn it into a one-finding report with an executive summary.",
+    "steps": [
+      "Start a session recorder so every command and output is logged with a timestamp.",
+      "Run a light, permitted scan of scanme.nmap.org and save the output in all formats.",
+      "Hash your evidence files.",
+      "Write `report.md` with: Executive Summary, Scope, Methodology, one Finding (title, severity, description, evidence, impact, remediation).",
+      "Convert it to a Word document with pandoc and read it as if you were the client."
+    ],
+    "commands": [
+      {
+        "cmd": "script -a engagement.log",
+        "explain": "Records everything you type and see into `engagement.log` (`-a` appends to it). Type `exit` when finished. This is your raw evidence trail."
+      },
+      {
+        "cmd": "date -u +%Y-%m-%dT%H:%M:%SZ",
+        "explain": "Prints the current time in UTC in a standard (ISO 8601) format. Professionals use UTC so timelines from different time zones line up."
+      },
+      {
+        "cmd": "nmap -sV --top-ports 100 -oA evidence_scanme scanme.nmap.org",
+        "explain": "Scans the 100 most common ports and detects service versions. `-oA` saves normal, XML and grepable outputs, ready to attach to a report."
+      },
+      {
+        "cmd": "sha256sum evidence_scanme.* > evidence_hashes.txt",
+        "explain": "Fingerprints every evidence file so you can later prove none was altered."
+      },
+      {
+        "cmd": "sudo apt install -y pandoc && pandoc report.md -o report.docx",
+        "explain": "Installs pandoc, a document converter, and turns your Markdown report into a Word file clients can read and comment on."
+      }
+    ],
+    "safety": "scanme.nmap.org permits light scanning only; do not run aggressive or repeated scans. Real reports contain sensitive data: store them encrypted and share only with authorised client contacts."
+  },
+  "hunt": "Read this finding from a junior tester's report: 'SQLi found!!! Critical 10.0. Site is totally owned. Fix your code.' What is wrong?\n\nAnswer: No location (which URL and parameter?), no evidence, no reproduction steps, no business impact, no specific remediation, and an unjustified score. Emotional language also reduces credibility. A better version: 'SQL injection in the `id` parameter of /products.php (High, CVSS 8.6). An unauthenticated attacker can read the customer database, including emails and hashed passwords. Steps: ... Evidence: request/response attached (data redacted). Fix: use parameterised queries; see OWASP SQL Injection Prevention Cheat Sheet.'",
+  "terms": [
+    {
+      "term": "Executive summary",
+      "def": "A short, non-technical overview of the results and business risk for decision-makers.",
+      "use": "\"Keep the executive summary to one page; the CFO won't read further.\""
+    },
+    {
+      "term": "Remediation",
+      "def": "The specific fix or action that removes or reduces a vulnerability.",
+      "use": "\"The remediation is to enforce authorisation checks server-side on every object request.\""
+    },
+    {
+      "term": "Severity",
+      "def": "How serious a finding is, combining how likely it is to be exploited and how bad the impact would be.",
+      "use": "\"I rated it Medium because exploitation needs an authenticated admin account.\""
+    },
+    {
+      "term": "Rules of engagement (RoE)",
+      "def": "The agreed document defining scope, timing, allowed techniques and contacts for a test.",
+      "use": "\"Denial-of-service testing is excluded in the rules of engagement.\""
+    },
+    {
+      "term": "PICERL",
+      "def": "SANS's six incident-response phases: Preparation, Identification, Containment, Eradication, Recovery, Lessons learned.",
+      "use": "\"We're still in containment; don't wipe the host until we've imaged it.\""
+    },
+    {
+      "term": "Chain of custody",
+      "def": "A documented record of who collected, handled and stored evidence, and when.",
+      "use": "\"Log the disk image in the chain of custody form with its SHA-256 hash.\""
+    },
+    {
+      "term": "Retest",
+      "def": "A follow-up check that confirms a reported vulnerability has really been fixed.",
+      "use": "\"Two of the five highs were still exploitable during the retest.\""
+    }
+  ],
+  "quiz": [
+    {
+      "q": "What does the 'C' in PICERL stand for, and what happens there?",
+      "options": [
+        "Cleanup: delete all logs",
+        "Communication: tell the press",
+        "Containment: stop the attack spreading, e.g. isolate hosts",
+        "Compliance: fill in forms"
+      ],
+      "answer": 2,
+      "why": "Containment limits damage before eradication and recovery."
+    },
+    {
+      "q": "Which sentence belongs in an executive summary?",
+      "options": [
+        "An outside attacker could view any customer's invoices without logging in.",
+        "IDOR in GET /api/v2/invoices?id=",
+        "We used Burp Suite Repeater with a modified id parameter.",
+        "CWE-639 was identified on host 10.0.4.12."
+      ],
+      "answer": 0,
+      "why": "Executives need business impact in plain language; technical details go in the findings."
+    },
+    {
+      "q": "Why should timestamps in reports and incident notes be in UTC?",
+      "options": [
+        "It looks more professional",
+        "UTC is more accurate than local time",
+        "Tools cannot show local time",
+        "So events from systems in different time zones line up in one timeline"
+      ],
+      "answer": 3,
+      "why": "Mixing time zones causes confusion when correlating logs and actions."
+    },
+    {
+      "q": "A High CVSS finding is on a lab server with no data and no network access. The best approach is:",
+      "options": [
+        "Always report CVSS exactly with no comment",
+        "Adjust the risk rating for context and explain why",
+        "Leave it out of the report",
+        "Mark it Critical to be safe"
+      ],
+      "answer": 1,
+      "why": "Severity should reflect real risk in context, with reasoning so readers can trust it."
+    },
+    {
+      "q": "Why hash evidence files with sha256sum?",
+      "options": [
+        "To compress them",
+        "To encrypt them",
+        "To prove later that they were not altered",
+        "To hide them from attackers"
+      ],
+      "answer": 2,
+      "why": "Matching hashes show the file is identical to when it was collected, supporting chain of custody."
+    }
+  ],
+  "talk": {
+    "scenario": "At the end of a test, the client's CTO asks on a call: 'So, how bad is it, and what should we do first?'",
+    "model": "Overall, the external perimeter is in reasonable shape, but we found one critical issue: an access-control flaw in the customer API that lets any logged-in user view other customers' invoices. That's a likely data breach with regulatory impact, so I'd fix it this week; the remediation is a server-side ownership check on every request. The two high findings, outdated software on the VPN and weak password policy, should follow within 30 days. Everything is detailed with reproduction steps in the report, and we're happy to retest once fixes are in."
+  },
+  "reflect": "Rewrite one technical thing you learned this month as a two-sentence explanation for a non-technical manager. What did you have to remove or translate?"
+}

@@ -1,0 +1,121 @@
+{
+  "day": 2,
+  "week": 1,
+  "title": "The Terminal Is Your Flashlight",
+  "theme": "Linux Fundamentals",
+  "minutes": 50,
+  "mindset": "Files are where systems keep their secrets, and the terminal lets you search them faster than anyone with a mouse.",
+  "cards": [
+    {
+      "title": "Why the terminal?",
+      "body": "The **terminal** (or **shell**) is a window where you type instructions instead of clicking. Kali's default shell is **zsh**; most servers use **bash**. They behave almost identically for beginners.\n\nWhy bother? Most servers on the internet have no desktop at all, only a shell. When an attacker breaks in, they usually land in a shell, not a pretty window. Typing is also faster and repeatable: one line can search ten thousand files. Think of it as talking directly to the building manager instead of filling in forms at reception."
+    },
+    {
+      "title": "The filesystem is a tree",
+      "body": "Linux stores everything in one upside-down tree that starts at `/`, called **root**. Key branches worth knowing:\n\n- `/home/you`: your personal files (like your own flat).\n- `/etc`: system settings and config files (the building's rulebook).\n- `/var/log`: logs, the diary of what happened.\n- `/tmp`: scratch space anyone can write to.\n- `/root`: the administrator's home.\n- `/bin`, `/usr/bin`: the programs themselves.\n\nAttackers love `/etc` for configs and passwords, `/home` for personal secrets, and `/tmp` because they can drop files there."
+    },
+    {
+      "title": "Moving around",
+      "body": "Three commands get you anywhere:\n\n- `pwd` (print working directory): 'Where am I standing?'\n- `ls` (list): 'What is in this room?' Add `-la` to show hidden files (names starting with a dot) and details.\n- `cd` (change directory): walk to another room. `cd ..` goes up one level, `cd ~` goes home, `cd /` goes to the very top.\n\nA **path** is an address. `/etc/passwd` is an *absolute* path, starting from the top. `notes/todo.txt` is *relative*, starting from where you stand now, like 'second door on the left'."
+    },
+    {
+      "title": "Working with files",
+      "body": "- `cat file`: print the whole file to the screen.\n- `less file`: read a long file page by page (press `q` to quit).\n- `head` / `tail`: show the first or last 10 lines. `tail -f` watches a log live.\n- `touch`, `mkdir`, `cp`, `mv`, `rm`: create a file, make a folder, copy, move or rename, delete.\n\nCareful: `rm` has **no recycle bin**. Deleted means gone. Also, Linux does not trust file extensions: a file called `photo.jpg` could be a script. Use `file name` to see what something really is, like reading the ingredients instead of trusting the label."
+    },
+    {
+      "title": "Finding needles in haystacks",
+      "body": "Two search tools you will use every single day:\n\n- `find`: searches by *name, size, owner or type*. `find / -name '*.conf' 2>/dev/null` lists every config file. The `2>/dev/null` part throws away 'permission denied' noise.\n- `grep`: searches *inside* files for text. `grep -ri password /etc 2>/dev/null` looks for the word 'password' in every file under /etc, ignoring case (`-i`) and going into subfolders (`-r`).\n\nAn attacker who lands on a machine immediately goes hunting for passwords, keys and backups this way. Defenders should search first."
+    },
+    {
+      "title": "Pipes and redirection",
+      "body": "A **pipe** `|` sends the output of one command into the next, like a factory conveyor belt. `cat access.log | grep 404 | wc -l` means: read the log, keep lines with 404, count them.\n\n**Redirection** sends output to a file instead of the screen: `>` overwrites a file, `>>` adds to the end. `nmap ... > scan.txt` saves results.\n\nSmall tools chained together is the Unix philosophy. Each tool does one job well; pipes let you build almost anything, which is exactly how analysts slice huge logs in seconds."
+    },
+    {
+      "title": "Getting help: man pages",
+      "body": "You never need to memorise every option. `man ls` opens the **manual page** for `ls`. Use arrow keys to scroll, `/word` to search, `q` to quit. Most tools also accept `--help` or `-h` for a short summary.\n\nPros look things up constantly. The skill is not remembering flags; it is knowing a tool exists and how to read its manual quickly. Treat man pages like the instruction booklet in a toolbox: boring, but it stops you using a hammer as a screwdriver."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Credential hunting in files",
+      "analogy": "A burglar who gets into the hallway checks under the doormat and inside the key cupboard before trying to pick any locks.",
+      "how": [
+        "The attacker gains a low-level shell on a server, for example through a buggy web app.",
+        "They search config files, scripts, shell history and backups with `grep` and `find` for words like password, key, token or secret.",
+        "They reuse anything found to log into databases, other servers or higher-privilege accounts."
+      ],
+      "thinking": "Developers are busy. Somewhere there is probably a database password typed into a config file, a `.bash_history` with a password in a command, or a `backup.zip` nobody deleted. Searching costs me nothing.",
+      "signs": "Unusual bulk file reads by a web-server account, commands like `grep -r password` in process or shell logs, and later logins from new places using service accounts.",
+      "defend": "Keep secrets out of code and configs (use a secrets manager), restrict file permissions so services can only read what they need, rotate passwords, and clean up old backups and history."
+    }
+  ],
+  "story": {
+    "title": "Shellshock (2014)",
+    "body": "In September 2014 researchers disclosed **Shellshock** (CVE-2014-6271), a bug in **bash**, the shell on most Linux servers. Bash wrongly ran extra commands hidden after a function definition stored in an environment variable. Web servers using old-style CGI scripts copied request headers, like the browser's User-Agent, into environment variables, so attackers could send a crafted header and have the server run their commands. Mass exploitation began within hours. **Lesson:** the shell sits underneath everything; a flaw in a basic building block can expose millions of systems that never meant to give anyone a terminal."
+  },
+  "lab": {
+    "title": "Treasure hunt on your own Kali, then OverTheWire Bandit",
+    "goal": "Navigate the filesystem, search with find and grep, chain commands with pipes, and log into a legal practice server.",
+    "steps": [
+      "In your Kali terminal, create a practice folder and a fake secret file.",
+      "Use find and grep to locate the secret as if you were an attacker who had just landed.",
+      "Use a pipe to count how many user accounts exist on your system.",
+      "Visit overthewire.org/wargames/bandit, read the Level 0 page, then connect with SSH and solve levels 0 to 3 using only commands from today."
+    ],
+    "commands": [
+      { "cmd": "mkdir -p ~/lab/day02/.hidden && echo 'db_password=Summer2026' > ~/lab/day02/.hidden/config.bak", "explain": "`mkdir -p` makes the folders (including the hidden one starting with a dot); `echo ... >` writes a line of text into a new file." },
+      { "cmd": "ls -la ~/lab/day02", "explain": "Lists the folder including hidden items (`-a`) with details (`-l`). Without `-a` you would miss `.hidden`." },
+      { "cmd": "grep -ri password ~/lab 2>/dev/null", "explain": "Searches every file under ~/lab (`-r` recursive) for 'password', ignoring case (`-i`), and hides error messages." },
+      { "cmd": "find ~/lab -type f -name '*.bak'", "explain": "Finds regular files (`-type f`) whose names end in .bak, a classic forgotten-backup pattern." },
+      { "cmd": "cat /etc/passwd | cut -d: -f1 | wc -l", "explain": "Prints the user list, `cut` keeps only the first colon-separated field (the username), and `wc -l` counts the lines." },
+      { "cmd": "ssh bandit0@bandit.labs.overthewire.org -p 2220", "explain": "Connects to the OverTheWire Bandit practice server on port 2220 as user bandit0. The Level 0 web page gives the password." }
+    ],
+    "safety": "Your own Kali machine and OverTheWire Bandit (which openly invites players) are both fair game. Never run these searches on a computer you do not own or are not authorised to test."
+  },
+  "hunt": "A developer shows you their server setup. The web app's folder contains `config.php` with the line `$db_pass = 'Admin123';`, there is a file `site-backup-2024.tar.gz` in the same public web folder, and `ls -la` on their home shows a `.bash_history` file containing `mysql -u root -pAdmin123`. What is wrong?\n\nAnswer: Three ways to leak the same password. The backup sits in a public web folder, so anyone who guesses the name can download the whole site, including config.php. The password is weak and reused for the root database user. Shell history stored it in plaintext because it was typed on the command line. Fix: move backups out of the web root, use a strong unique password from a secrets store, and use `mysql -u root -p` so it prompts instead.",
+  "terms": [
+    { "term": "Shell", "def": "The program that reads the commands you type and runs them, such as bash or zsh.", "use": "We got a shell as www-data, so next step is local enumeration." },
+    { "term": "Root (directory and user)", "def": "`/` is the top of the filesystem; 'root' is also the all-powerful administrator account.", "use": "The config is under root's home, so we can't read it until we escalate." },
+    { "term": "Path", "def": "The address of a file, either absolute from `/` or relative to where you are now.", "use": "Use the absolute path in the cron job, otherwise it may run the wrong binary." },
+    { "term": "Pipe", "def": "The `|` symbol, which passes one command's output into another command as input.", "use": "Just pipe the auth log through grep and sort to see the top failed usernames." },
+    { "term": "Enumeration", "def": "Systematically listing everything you can find about a system: users, files, services, settings.", "use": "Don't jump to exploits; enumerate the box properly first." },
+    { "term": "Dotfile", "def": "A file whose name begins with a dot, hidden from a plain `ls`. Often stores settings or history.", "use": "Check the dotfiles; .bash_history often leaks passwords." }
+  ],
+  "quiz": [
+    {
+      "q": "Which command shows hidden files such as `.bash_history`?",
+      "options": ["ls", "ls -la", "pwd", "cd -h"],
+      "answer": 1,
+      "why": "The `-a` flag shows all entries including those starting with a dot, and `-l` adds details like owner and permissions."
+    },
+    {
+      "q": "What does `cat log.txt | grep error | wc -l` do?",
+      "options": ["Deletes error lines", "Copies the log", "Opens the manual", "Counts lines containing 'error'"],
+      "answer": 3,
+      "why": "cat outputs the file, grep keeps lines matching 'error', and wc -l counts them."
+    },
+    {
+      "q": "Which directory most commonly holds system configuration files?",
+      "options": ["/etc", "/tmp", "/home", "/bin"],
+      "answer": 0,
+      "why": "/etc holds configuration for the system and services, which is why attackers search it for passwords."
+    },
+    {
+      "q": "You want to search inside all files under /var/www for the word 'secret'. Which is right?",
+      "options": ["find /var/www secret", "cat /var/www secret", "grep -r secret /var/www", "ls secret /var/www"],
+      "answer": 2,
+      "why": "grep searches file contents; -r makes it go through every subfolder."
+    },
+    {
+      "q": "Why do attackers like the `/tmp` directory?",
+      "options": ["It holds passwords", "Any user can usually write files there", "It is never logged", "It runs as root"],
+      "answer": 1,
+      "why": "/tmp is world-writable scratch space, so even a low-privilege account can drop and run tools there."
+    }
+  ],
+  "talk": {
+    "scenario": "A teammate asks: 'Why do you always go straight to grep and find after getting a shell?'",
+    "model": "Because enumeration usually beats exploitation. Once I have a shell, the quickest wins are secrets that are already lying around: passwords in config files, keys in dotfiles, old backups. A recursive grep through /etc, /var/www and home directories takes seconds and often hands me credentials for the database or another account. It also tells me what the defenders should clean up, so it goes straight into the report."
+  },
+  "reflect": "Where on your own computer might you have left a password or key in a plain file? How would someone with the commands you learned today find it?"
+}

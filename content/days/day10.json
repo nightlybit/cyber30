@@ -1,0 +1,179 @@
+{
+  "day": 10,
+  "week": 2,
+  "title": "Talking to Services: Enumeration",
+  "theme": "Recon / Enumeration",
+  "minutes": 60,
+  "mindset": "An open port is a conversation; ask polite questions and services will often tell you far more than they should.",
+  "cards": [
+    {
+      "title": "Enumeration: from doors to details",
+      "body": "Yesterday Nmap told you *which* doors are open. **Enumeration** is knocking on each one and having a conversation: Which users exist? What files are shared? What pages are hidden? What version are you?\n\nThink of a new building. Scanning tells you there is a reception desk, a loading bay and a side entrance. Enumeration is chatting to the receptionist, reading the staff list on the wall, and noticing the loading bay accepts deliveries without ID. Most real compromises come from enumeration, not fancy exploits."
+    },
+    {
+      "title": "Banner grabbing",
+      "body": "Many services greet you with a **banner**: a line of text that announces what they are, like `220 (vsFTPd 2.3.4)` or `SSH-2.0-OpenSSH_4.7p1`.\n\nIt is like a shop sign that says 'Locks by Brand X, installed 2008'. You can grab banners by simply connecting with `nc` (netcat), a tool that opens a raw connection and shows what comes back. Attackers grab banners because a version string turns guessing into research. Defenders can trim banners, but the real fix is staying patched."
+    },
+    {
+      "title": "FTP: the old file cabinet",
+      "body": "**FTP** (File Transfer Protocol, port 21) moves files between computers. It is old and sends usernames and passwords in **plaintext**, so anyone sniffing the network can read them (Day 6).\n\nMany FTP servers allow **anonymous login**: username `anonymous`, any password. It is like a public filing cabinet in a lobby. Sometimes that is intended, but attackers check whether it contains backups or config files, and whether they can *upload*, which might let them plant files a website will serve."
+    },
+    {
+      "title": "SSH: the secure front door",
+      "body": "**SSH** (Secure Shell, port 22) gives encrypted remote command-line access. Unlike FTP and Telnet, it protects the traffic. That makes it a well-built door, but still a door.\n\nAttackers enumerate SSH for three things: the version (very old versions have known flaws), which **authentication methods** it allows (passwords are guessable; keys are much stronger), and whether it accepts logins from the whole internet. An SSH port with passwords allowed is a standing invitation for password guessing, which you will see on Day 12."
+    },
+    {
+      "title": "SMB: Windows file sharing",
+      "body": "**SMB** (Server Message Block, port 445, older systems also 139) is how Windows, and Linux via **Samba**, share files and printers. It holds a lot: **shares** (shared folders), user lists, groups and domain information.\n\nSome servers allow a **null session**: connecting with no username or password at all. That is like a library that lets anyone walk in and read the member list. Tools like `smbclient` and `enum4linux` ask SMB for everything it is willing to reveal. WannaCry (Day 9) showed how dangerous exposed SMB can be."
+    },
+    {
+      "title": "HTTP: reading the website like an attacker",
+      "body": "Websites (ports 80/443, often 8080) reveal a lot: **HTTP headers** such as `Server: Apache/2.2.8`, the page source, comments developers forgot, and `robots.txt`, a file asking search engines not to index certain paths, which helpfully lists paths someone wanted hidden.\n\nIt is like reading the notices on a building's front door, then noticing the 'Staff only: do not enter' sign tells you exactly where the interesting room is. `curl -I` shows headers; `whatweb` identifies technologies like WordPress or PHP."
+    },
+    {
+      "title": "Directory brute forcing",
+      "body": "Websites often have pages that are not linked anywhere: `/admin`, `/backup`, `/old`, `/phpmyadmin`. **Directory brute forcing** (also called forced browsing) sends thousands of requests from a **wordlist** of common names and notes which ones exist.\n\nIt is like trying every door on a hotel corridor, not just the ones with room numbers on the map. Tools like **gobuster** and **ffuf** do this fast. Response codes guide you: `200` found, `301/302` redirect (often a folder), `403` forbidden (exists but blocked, still interesting!), `404` not found."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Anonymous FTP / SMB null session access",
+      "analogy": "Walking into an office lobby and finding a filing cabinet labelled 'Public', which actually contains last year's staff passwords.",
+      "how": [
+        "The attacker sees port 21 or 445 open in their scan.",
+        "They try FTP with username `anonymous`, or SMB with no credentials at all.",
+        "If allowed, they list files, shares, users and groups.",
+        "They download anything sensitive (backups, scripts, configs) and look for passwords or upload opportunities."
+      ],
+      "thinking": "Admins enable anonymous access 'temporarily' for convenience and forget. What is sitting in there, and can I write to it too?",
+      "signs": "FTP logs with `anonymous` logins, SMB logs showing null or guest sessions, large downloads from shares by unauthenticated users.",
+      "defend": "Disable anonymous FTP and SMB null sessions unless truly needed, replace FTP with SFTP, restrict shares to named users, and never store credentials or backups in shared folders."
+    },
+    {
+      "name": "Forced browsing (directory brute force)",
+      "analogy": "Trying every room key on a hotel corridor because the map only shows the guest rooms, not the manager's office.",
+      "how": [
+        "The attacker picks a wordlist of common directory and file names.",
+        "A tool like gobuster or ffuf requests each name on the target site.",
+        "Non-404 responses reveal hidden pages: admin panels, backups, old versions, config files.",
+        "The attacker visits each finding looking for missing logins or leaked data."
+      ],
+      "thinking": "If the link isn't shown, the developer may assume no one will find it. Hidden is not the same as protected.",
+      "signs": "Web logs full of 404 errors from one IP in a short time, requests for names like `/backup.zip` or `/.git/`, tool user-agents such as gobuster's default.",
+      "defend": "Require authentication on every sensitive page (never rely on secrecy), delete old files and backups from the web root, rate-limit or block clients with floods of 404s, and use a web application firewall."
+    }
+  ],
+  "story": {
+    "title": "vsftpd 2.3.4 backdoor (2011)",
+    "body": "In July 2011, someone replaced the vsftpd 2.3.4 download on its official master site with a tampered copy. The tampered code contained a **backdoor**: if a user logged in with a username ending in `:)`, the server opened a root shell on TCP port 6200. It was spotted within days, because the file's digital signature did not match, and removed. The backdoored version lives on inside training targets like Metasploitable 2. **Lesson:** a simple banner grab saying `vsFTPd 2.3.4` is enough for an attacker to know exactly what to try. Verify software signatures, and know your exact versions."
+  },
+  "lab": {
+    "title": "Enumerate Metasploitable 2",
+    "goal": "Grab banners, test anonymous FTP and SMB null sessions, and discover hidden web directories on a deliberately vulnerable VM.",
+    "steps": [
+      "Start Metasploitable 2 in VirtualBox on a host-only network and find its IP with yesterday's ping sweep (we use 192.168.56.101 below; change it to yours).",
+      "Grab the FTP banner with netcat. Note the exact version.",
+      "Log into FTP as `anonymous` with any password, type `ls`, then `bye`.",
+      "List SMB shares without a password, then run enum4linux for a full report of users and shares.",
+      "Brute force web directories with gobuster, then repeat with ffuf and compare.",
+      "Write down three things an attacker would investigate next, and why."
+    ],
+    "commands": [
+      {
+        "cmd": "nc -nv 192.168.56.101 21",
+        "explain": "`nc` (netcat) opens a raw connection. `-n` skips DNS lookups, `-v` is verbose. Port 21 is FTP; the first line back is the banner. Press Ctrl+C to quit."
+      },
+      {
+        "cmd": "ftp 192.168.56.101",
+        "explain": "Opens an FTP session. Enter `anonymous` as the username and anything as the password to test for anonymous access. If `ftp` is missing, install it with `sudo apt install ftp`."
+      },
+      {
+        "cmd": "smbclient -L //192.168.56.101 -N",
+        "explain": "`smbclient` talks SMB. `-L` lists shares on the server, `-N` means no password (a null session)."
+      },
+      {
+        "cmd": "enum4linux -a 192.168.56.101",
+        "explain": "`enum4linux` wraps several SMB tools. `-a` runs all basic checks: users, shares, groups, password policy, OS info."
+      },
+      {
+        "cmd": "gobuster dir -u http://192.168.56.101 -w /usr/share/wordlists/dirb/common.txt",
+        "explain": "`dir` mode brute forces directories. `-u` is the target URL, `-w` the wordlist of about 4,600 common names that ships with Kali."
+      },
+      {
+        "cmd": "ffuf -u http://192.168.56.101/FUZZ -w /usr/share/wordlists/dirb/common.txt -fc 404",
+        "explain": "`ffuf` replaces the word `FUZZ` in the URL with each wordlist entry. `-fc 404` filters out 'not found' responses so you only see hits."
+      }
+    ],
+    "safety": "Run these only against Metasploitable 2 (or similar VMs you own) on a host-only or isolated network. Metasploitable is extremely vulnerable: never connect it to the internet or a shared network. Directory brute forcing a real site without permission is unauthorised access testing."
+  },
+  "hunt": "During a permitted test, gobuster on a shop website returns: `/admin (Status: 302)`, `/backup (Status: 403)`, `/.git/HEAD (Status: 200)`, `/uploads (Status: 301)`. Which finding is most dangerous, and why?\n\nAnswer: `/.git/HEAD` returning 200 means the site's Git folder is downloadable. An attacker can rebuild the full source code history with tools like git-dumper, often revealing database passwords, API keys and hidden logic. `/backup` returning 403 is also worth noting (it exists), and `/uploads` should be checked for uploaded scripts being executed. Fix: never deploy the `.git` folder to the web root, block dot-folders in the web server config, and rotate any secrets ever committed.",
+  "terms": [
+    {
+      "term": "Enumeration",
+      "def": "Actively questioning discovered services to list users, shares, versions, files and other useful details.",
+      "use": "SMB enumeration gave us the full user list, so password spraying is next."
+    },
+    {
+      "term": "Banner grabbing",
+      "def": "Connecting to a service just to read the greeting it sends, which often includes its software and version.",
+      "use": "A quick banner grab shows vsftpd 2.3.4, which is the backdoored release."
+    },
+    {
+      "term": "Null session",
+      "def": "An SMB connection made with no username or password, which some misconfigured servers allow.",
+      "use": "The file server permits null sessions, so we could list shares without creds."
+    },
+    {
+      "term": "Anonymous FTP",
+      "def": "An FTP setting that lets anyone log in with the username 'anonymous' and no real password.",
+      "use": "Anonymous FTP is enabled and writable, which is a big finding."
+    },
+    {
+      "term": "Forced browsing",
+      "def": "Requesting unlinked URLs directly, often using a wordlist, to find hidden pages or files.",
+      "use": "Forced browsing turned up /old-admin, which still has default credentials."
+    },
+    {
+      "term": "Wordlist",
+      "def": "A text file of likely values (directory names, usernames, passwords) used to automate guessing.",
+      "use": "Swap to a bigger wordlist; common.txt is too small for this app."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "A gobuster result shows `/backup (Status: 403)`. What does that mean?",
+      "options": ["The folder does not exist", "The folder exists but access is forbidden, which is still worth noting", "The server crashed", "The folder is publicly readable"],
+      "answer": 1,
+      "why": "403 means the server knows the path but refuses access. It confirms something exists there."
+    },
+    {
+      "q": "What does `smbclient -L //10.0.0.5 -N` do?",
+      "options": ["Deletes SMB shares", "Brute forces SMB passwords", "Scans all ports", "Lists SMB shares without supplying a password"],
+      "answer": 3,
+      "why": "-L lists shares and -N means no password, so it tests whether a null session works."
+    },
+    {
+      "q": "Why is plain FTP considered insecure?",
+      "options": ["It sends usernames and passwords in plaintext", "It only works on Windows", "It uses UDP", "It cannot transfer large files"],
+      "answer": 0,
+      "why": "FTP does not encrypt, so anyone sniffing the network can read credentials. SFTP or FTPS should be used."
+    },
+    {
+      "q": "In ffuf, what is the word FUZZ in the URL for?",
+      "options": ["It enables encryption", "It sets the speed", "It marks where each wordlist entry is inserted", "It filters out 404s"],
+      "answer": 2,
+      "why": "ffuf replaces FUZZ with every line from the wordlist, so you can fuzz any part of a request."
+    },
+    {
+      "q": "What triggered the backdoor in vsftpd 2.3.4?",
+      "options": ["Sending a huge file", "A username ending in ':)'", "Connecting on port 80", "Logging in as root"],
+      "answer": 1,
+      "why": "The tampered code opened a root shell on port 6200 when a login username ended in a smiley face."
+    }
+  ],
+  "talk": {
+    "scenario": "A junior developer says: 'Our admin page isn't linked anywhere, so it doesn't need a login.'",
+    "model": "Hidden isn't the same as protected. Attackers routinely do forced browsing with wordlists of common names, and /admin is near the top of every list; tools like gobuster or ffuf would find it in seconds. It may also leak through robots.txt, JavaScript files or browser history. Every sensitive page needs proper authentication and authorisation, and ideally the admin interface should only be reachable over the VPN."
+  },
+  "reflect": "Which surprised you more today: how much a service volunteers when you simply connect, or how many hidden pages a wordlist found? What does that teach you about 'security through obscurity'?"
+}

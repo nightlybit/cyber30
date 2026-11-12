@@ -1,0 +1,192 @@
+{
+  "day": 8,
+  "week": 2,
+  "title": "Detective Work: OSINT & Passive Recon",
+  "theme": "Recon",
+  "minutes": 50,
+  "mindset": "Organisations leak their own blueprints in public; the attacker's first job is simply to read them.",
+  "cards": [
+    {
+      "title": "Reconnaissance: casing before acting",
+      "body": "**Reconnaissance** (recon) is gathering information about a target before attacking. It is usually the longest phase of a real attack, because good information makes everything later easier.\n\nA burglar does not start by smashing a window. They walk past the house for a week: when do people leave, is there a dog, which window is open? Hackers do the same with names, email formats, servers and software versions. Professionals say: **the more you enumerate, the less you have to guess.**"
+    },
+    {
+      "title": "Passive vs active recon",
+      "body": "**Passive recon** means collecting information without touching the target's systems: reading public records, search engines, social media, DNS data held by third parties. The target cannot see you.\n\n**Active recon** means interacting directly, such as scanning their servers (that is Day 9). The target's logs can record you.\n\nAnalogy: passive is reading about a house on a property website; active is walking up and rattling the door handle. Passive is quiet and almost always legal. Active needs **permission**."
+    },
+    {
+      "title": "OSINT: open-source intelligence",
+      "body": "**OSINT** is intelligence gathered from public sources: websites, job adverts, LinkedIn, GitHub, news, company filings, photos, and leaked-data reports.\n\nAttackers love job adverts. 'Seeking admin with experience in Cisco ASA, VMware and Exchange 2019' tells them exactly which products to research. A LinkedIn list of employees gives names to phish. A developer's public GitHub repo might contain a password by accident. None of this is hacking; it is reading. That is why it is so powerful and so easy to overlook."
+    },
+    {
+      "title": "WHOIS: the domain's registration card",
+      "body": "When someone registers a domain name, the registrar records details: who registered it, when, when it expires, and which **name servers** answer for it. **WHOIS** is the lookup service for that record.\n\nThink of it like the land registry for a house. Today many personal details are hidden by privacy services, but you still learn dates, the registrar, and name servers. Attackers check the expiry date (an expired domain can be bought and hijacked) and which company runs the DNS."
+    },
+    {
+      "title": "DNS enumeration: the phone book",
+      "body": "DNS (Day 5) turns names into IP addresses. Different **record types** reveal different things: **A** (IPv4 address), **MX** (mail servers), **NS** (name servers), **TXT** (notes, often listing approved email senders like a cloud provider).\n\nAttackers also hunt for **subdomains** such as `vpn.`, `dev.` or `old-shop.`, because each is a separate door. Sources include **certificate transparency logs** (a public diary of every HTTPS certificate issued, e.g. crt.sh). It is like reading every entry for one surname in the phone book."
+    },
+    {
+      "title": "Zone transfers: the photocopied phone book",
+      "body": "A **zone transfer (AXFR)** is a feature that lets a backup DNS server copy the full list of records from the main one. It is meant only for trusted partner servers.\n\nIf misconfigured, the server hands that full list to *anyone* who asks, revealing every hostname, including internal ones. Imagine a hotel receptionist who gives the full guest list to whoever says 'I'm from the other branch.' It is rarer today, but attackers always try it because it costs one command."
+    },
+    {
+      "title": "Google dorks and Shodan",
+      "body": "**Google dorks** are advanced search operators that find things accidentally exposed: `site:example.com filetype:pdf` (only PDFs on that site), `intitle:\"index of\"` (open folder listings), `inurl:admin` (admin pages). The Google Hacking Database on exploit-db.com collects thousands.\n\n**Shodan** is a search engine for internet-connected devices instead of web pages. It constantly scans the internet and records what each IP answers: webcams, databases, industrial controllers. Attackers search it to find exposed systems without sending a single packet themselves."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Google dorking for exposed data",
+      "analogy": "Instead of breaking into an office, you ask the town library whether anyone ever donated that office's filing cabinet by mistake.",
+      "how": [
+        "The attacker combines operators like `site:target.com` with `filetype:xls`, `filetype:sql` or `intitle:\"index of\"`.",
+        "Google returns files and pages that were indexed because they were public by accident.",
+        "They find spreadsheets of staff, configuration files, backups or login pages.",
+        "They use the findings for phishing, password guessing or direct access."
+      ],
+      "thinking": "Developers are busy and make folders public 'for a minute'. Search engines never forget. What has this company leaked without realising?",
+      "signs": "Hard to detect, because the attacker only talks to Google. Defenders find it by dorking themselves and by watching for downloads of sensitive files from odd sources.",
+      "defend": "Regularly dork your own domains, remove sensitive files and request removal from search caches, disable directory listing, and require login for anything internal. Note: robots.txt does not protect files; it just asks search engines politely and also advertises paths to attackers."
+    },
+    {
+      "name": "DNS zone transfer (AXFR) abuse",
+      "analogy": "Calling a company's switchboard, claiming to be head office, and asking them to fax the full internal phone directory.",
+      "how": [
+        "The attacker finds the domain's name servers with an NS lookup.",
+        "They send an AXFR request to each name server.",
+        "A misconfigured server replies with every record in the zone.",
+        "The attacker now has a full map of hostnames such as `vpn`, `test`, `backup`, to target next."
+      ],
+      "thinking": "Subdomain guessing is slow. If one server is misconfigured, I get the whole map in one shot.",
+      "signs": "DNS server logs show AXFR requests from unknown IP addresses.",
+      "defend": "Allow zone transfers only to specific secondary DNS server IPs, and keep internal hostnames in a separate internal-only DNS zone."
+    },
+    {
+      "name": "Email harvesting for phishing",
+      "analogy": "Collecting every name tag at a conference so you can later send each person a fake invitation.",
+      "how": [
+        "The attacker collects employee names from LinkedIn, the company site and press releases.",
+        "They work out the email format (e.g. firstname.lastname@target.com) from any public address.",
+        "Tools like theHarvester gather more addresses from public sources.",
+        "The resulting list feeds phishing campaigns or password spraying."
+      ],
+      "thinking": "Every employee is a door. If I know the format, I can generate hundreds of valid addresses from a list of names.",
+      "signs": "Bursts of similar emails to many staff, login attempts against many accounts from one source.",
+      "defend": "Security awareness training, strong email filtering (SPF, DKIM, DMARC), MFA so stolen passwords alone are useless, and limiting what staff publicly reveal about internal systems."
+    }
+  ],
+  "story": {
+    "title": "Strava heatmap reveals military bases (2018)",
+    "body": "In January 2018, fitness app Strava published a global 'heatmap' showing the routes of its users' runs and rides. An analyst noticed that in remote areas of countries such as Syria and Afghanistan, bright loops of activity outlined the layouts of military bases, because soldiers were jogging with fitness trackers. With more digging, individual profiles could be linked to routes. No system was hacked: the data was public and aggregated. **Lesson:** OSINT is powerful because many small, harmless facts combine into something sensitive. Defenders must think about what their people and products publish, not only about firewalls."
+  },
+  "lab": {
+    "title": "Passive recon on a permitted training domain",
+    "goal": "Use WHOIS, dig and theHarvester to gather public information, and perform a zone transfer on a domain built for exactly this practice.",
+    "steps": [
+      "Run a WHOIS lookup on example.com and note the registrar, creation date and name servers.",
+      "Use dig to look up mail and name server records.",
+      "Find the name servers for zonetransfer.me, a training domain created by DigiNinja that deliberately allows zone transfers.",
+      "Request a zone transfer from one of its name servers and read the list of hostnames returned. Which look interesting to an attacker?",
+      "Use theHarvester with the crt.sh source to list subdomains seen in certificate transparency logs for a domain you own or for example.com."
+    ],
+    "commands": [
+      {
+        "cmd": "whois example.com",
+        "explain": "Asks the WHOIS registry who registered `example.com`, when, and which name servers it uses."
+      },
+      {
+        "cmd": "dig example.com MX +short",
+        "explain": "`dig` queries DNS. `MX` asks for mail server records. `+short` prints only the answers, no extra detail."
+      },
+      {
+        "cmd": "dig zonetransfer.me NS +short",
+        "explain": "Asks for the NS (name server) records: which servers hold the authoritative copy of this domain's records."
+      },
+      {
+        "cmd": "dig axfr zonetransfer.me @nsztm1.digi.ninja",
+        "explain": "`axfr` requests a full zone transfer. `@nsztm1.digi.ninja` sends the request to that specific name server. This training domain is set up to allow it, so you will see every record."
+      },
+      {
+        "cmd": "theHarvester -d example.com -b crtsh",
+        "explain": "`theHarvester` collects emails, hosts and subdomains from public sources. `-d` is the domain, `-b crtsh` picks the crt.sh certificate transparency source. It never touches the target's servers."
+      }
+    ],
+    "safety": "These lookups are passive and query public services. Only do zone transfers against zonetransfer.me (built for practice) or your own DNS server. Do not use findings about real organisations to contact, phish or access anything."
+  },
+  "hunt": "A company's careers page says: 'Join our team! You will manage our Citrix NetScaler gateway, Fortinet VPN and on-prem Exchange 2016 server.' Their GitHub has a repo called `infra-scripts` updated last week. What would an attacker do with this?\n\nAnswer: The job advert hands over the exact products on the perimeter, so the attacker can look up known vulnerabilities for those versions (Exchange 2016 and edge VPN devices have had serious, actively exploited flaws). The public `infra-scripts` repo may contain hostnames, internal IPs or even hard-coded passwords or API keys, including in old commits. Fix: keep job adverts generic, scan repos for secrets, rotate anything ever committed, and patch edge devices fast.",
+  "terms": [
+    {
+      "term": "OSINT",
+      "def": "Open-source intelligence: useful information gathered from public sources such as websites, social media and public records.",
+      "use": "Before we touched a single server, OSINT gave us 200 employee emails and their VPN vendor."
+    },
+    {
+      "term": "Passive recon",
+      "def": "Gathering information without directly interacting with the target's systems, so the target cannot see you.",
+      "use": "Stick to passive recon until the rules of engagement are signed."
+    },
+    {
+      "term": "Enumeration",
+      "def": "Systematically listing every item of a kind: users, subdomains, services, shares.",
+      "use": "Subdomain enumeration turned up a forgotten staging site."
+    },
+    {
+      "term": "Zone transfer (AXFR)",
+      "def": "A DNS feature that copies all of a domain's records to another server; dangerous if anyone is allowed to request it.",
+      "use": "Their secondary name server still allows AXFR, so we got the full internal host list."
+    },
+    {
+      "term": "Google dork",
+      "def": "A search query using advanced operators like site:, filetype: or intitle: to find accidentally exposed information.",
+      "use": "A simple dork for filetype:sql on their domain found a database backup."
+    },
+    {
+      "term": "Certificate transparency",
+      "def": "Public logs of every HTTPS certificate issued, which reveal the hostnames those certificates cover.",
+      "use": "crt.sh showed a cert for jenkins-old.target.com, which isn't linked anywhere."
+    },
+    {
+      "term": "Footprinting",
+      "def": "Building an overall profile of a target organisation: domains, IP ranges, people, technologies.",
+      "use": "Our footprinting phase maps the external attack surface before any scanning."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "Which activity is passive reconnaissance?",
+      "options": ["Running a port scan on the target", "Reading the target's job adverts and LinkedIn pages", "Trying default passwords on their VPN", "Sending a phishing email"],
+      "answer": 1,
+      "why": "Reading public sources never touches the target's systems, so it is passive."
+    },
+    {
+      "q": "Which DNS record type tells you a domain's mail servers?",
+      "options": ["A", "NS", "TXT", "MX"],
+      "answer": 3,
+      "why": "MX stands for Mail eXchanger. A is an address, NS is name server, TXT holds free text."
+    },
+    {
+      "q": "Why is an open zone transfer a problem?",
+      "options": ["It hands anyone a full list of the domain's hostnames", "It deletes DNS records", "It slows down the website", "It encrypts the DNS server"],
+      "answer": 0,
+      "why": "AXFR copies every record, giving attackers a complete map of systems, including ones never linked publicly."
+    },
+    {
+      "q": "What is Shodan?",
+      "options": ["A password cracker", "A Kali DNS tool", "A search engine that indexes internet-connected devices and their open services", "A type of malware"],
+      "answer": 2,
+      "why": "Shodan scans the internet and records what devices respond with, so you can search for exposed systems."
+    },
+    {
+      "q": "What is the main lesson of the 2018 Strava heatmap incident?",
+      "options": ["Fitness apps contain malware", "Many small public data points can combine into sensitive intelligence", "GPS is easily jammed", "Military networks were hacked"],
+      "answer": 1,
+      "why": "Nothing was breached; aggregated public data revealed base layouts. That is the power of OSINT."
+    }
+  ],
+  "talk": {
+    "scenario": "A colleague asks: 'Why do pentesters spend days on recon instead of just scanning straight away?'",
+    "model": "Recon defines the real attack surface, and you can't test what you don't know exists. Passive recon and OSINT, things like certificate transparency, DNS enumeration and job adverts, often uncover forgotten subdomains and the exact products in use without sending a single packet to the client. That lets us focus active scanning on the most promising targets and stay quiet. In real attacks, the forgotten asset found during footprinting is often the way in."
+  },
+  "reflect": "Search for yourself or your own small project online as an attacker would. What could someone learn about you, your accounts or your technology in ten minutes, and what would you remove?"
+}

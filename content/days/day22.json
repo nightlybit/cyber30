@@ -1,0 +1,162 @@
+{
+  "day": 22,
+  "week": 4,
+  "title": "Getting a Shell",
+  "theme": "Exploitation - Metasploit, Payloads & Shells",
+  "minutes": 55,
+  "mindset": "An exploit is just the key that opens the door. The payload is what you do once you are inside, and a shell is how you stay in the room.",
+  "cards": [
+    {
+      "title": "Exploit vs. payload",
+      "body": "Two different things get blurred by beginners. An **exploit** is the technique that abuses a specific bug to get the target to run your code, like picking a particular lock. A **payload** is the code that then runs, deciding what you actually gain, like what you do once the door is open. The same exploit can carry different payloads: open a command prompt, add a user, or call back to you. Keeping these separate is the foundation of all exploitation tooling. Pick a way in (exploit), then pick what happens next (payload)."
+    },
+    {
+      "title": "What a shell is",
+      "body": "A **shell** is command-line access to a machine, the same prompt you type into on your own Kali box, but on someone else's computer. Getting a shell on a target is the classic 'you are in' moment, because from a shell you can list files, read data, and run tools. Attackers chase shells because a graphical screen is slow and limited; a command line is total control in text form. The whole point of most exploits is to turn a single bug into a shell you can type into."
+    },
+    {
+      "title": "Bind shell vs. reverse shell",
+      "body": "Two ways to connect a shell. A **bind shell** opens a listening port on the target and waits for you to connect in, like the target leaving a door unlocked for you. Problem: firewalls usually block incoming connections. A **reverse shell** flips it: the target connects out to you, because outbound traffic is rarely blocked. Like telling someone to phone you rather than you phoning them. This is why reverse shells dominate in the real world; the victim 'calls home' past the firewall to a **listener** you set up."
+    },
+    {
+      "title": "The listener (netcat)",
+      "body": "Before a reverse shell can call home, you must be waiting. A **listener** is a program sitting on a port, ready to catch the incoming connection. The simplest is **netcat** (`nc`), the 'Swiss Army knife' of networking. `nc -lvnp 4444` means listen (`-l`), verbosely (`-v`), no DNS (`-n`), on port (`-p`) 4444. When the target's reverse shell connects, you suddenly get its command prompt in your terminal. Understanding listeners makes the whole exploitation picture click: someone has to answer the phone."
+    },
+    {
+      "title": "Metasploit, the exploitation workbench",
+      "body": "**Metasploit** is a framework that organizes thousands of exploits and payloads so you do not hand-build each attack. You pick a module (`use ...`), set options like the target IP (`RHOSTS`) and your listener IP (`LHOST`), choose a payload, and run it. It also provides **Meterpreter**, a powerful payload that gives a feature-rich session (upload files, screenshot, pivot) instead of a bare shell. Metasploit is a learning goldmine because each module documents exactly which vulnerability it abuses and how."
+    },
+    {
+      "title": "How a defender sees this",
+      "body": "Exploitation is noisy if you know what to watch. A reverse shell is an outbound connection to an odd IP on an unusual port, often from a process that should never make network calls (like a web server spawning `bash`). Payloads may drop files or add users. Defenders hunt for these: unexpected listeners, strange child processes, beaconing to unknown hosts. Thinking like the attacker (exploit, payload, call home) tells the defender exactly which breadcrumbs to look for. Every technique you learn to use, you also learn to detect."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Reverse shell via exploit",
+      "analogy": "You slip a note under the door telling whoever is inside to phone your number; they call, and now you give them orders down the line.",
+      "how": [
+        "Attacker sets up a listener on their machine (e.g. nc -lvnp 4444)",
+        "An exploit or malicious payload runs on the target and connects back to the listener",
+        "The target's shell is piped over that connection, giving the attacker a command prompt"
+      ],
+      "thinking": "The attacker asks: the firewall blocks my inbound connections, so can I make the target reach out to me instead? Outbound traffic is almost always allowed.",
+      "signs": "A server process making an unexpected outbound connection, especially shells like bash or cmd spawning network sockets; beaconing to an unknown IP.",
+      "defend": "Restrict outbound traffic with egress filtering, alert on servers initiating connections, patch the exploited vulnerability, and run services with least privilege."
+    },
+    {
+      "name": "Metasploit module exploitation",
+      "analogy": "Instead of forging your own keys, you open a well-organized toolbox where each key is labeled with the exact lock it opens and the action it performs.",
+      "how": [
+        "Select a module matching a known vulnerability on the target (use exploit/...)",
+        "Set RHOSTS (target), LHOST (you), and choose a payload like a reverse shell or Meterpreter",
+        "Run the module; on success a session opens back to the attacker"
+      ],
+      "thinking": "The attacker asks: is this service running a version with a known, weaponized bug? If a Metasploit module exists, the hard work of exploit development is already done.",
+      "signs": "Known exploit signatures in IDS, crash-and-respawn of a service, new sessions and odd child processes, default Metasploit artifacts in logs.",
+      "defend": "Patch promptly (modules target known CVEs), use IDS/IPS signatures, segment networks, and monitor for the behaviors the payload creates."
+    }
+  ],
+  "story": {
+    "title": "EternalBlue and WannaCry (2017)",
+    "body": "EternalBlue was an exploit for a flaw in Windows SMB file sharing, leaked from a government toolkit. On its own it was just a way in. The WannaCry worm bolted a ransomware payload onto it: once EternalBlue opened the door, the payload encrypted the machine and used the same exploit to spread to the next. Within days it hit hundreds of thousands of computers across hospitals and businesses worldwide. The split is the lesson of today: the exploit (EternalBlue) is the key, the payload (ransomware + self-spread) is what it did. A patch had existed for weeks; unpatched machines fell."
+  },
+  "lab": {
+    "title": "Catch a reverse shell on your own machine",
+    "goal": "See a listener catch a connection and understand bind vs reverse, safely on localhost.",
+    "steps": [
+      "Open two terminals on your own Kali VM; no external target is involved",
+      "In terminal one, start a netcat listener on a port",
+      "In terminal two, connect to that listener to simulate a shell calling home",
+      "Type in the connecting terminal and watch text appear on the listener side",
+      "Explore Metasploit's help menus to see how modules and payloads are organized (do not fire at anyone)"
+    ],
+    "commands": [
+      {
+        "cmd": "nc -lvnp 4444",
+        "explain": "Starts a listener: -l listen, -v verbose, -n no DNS lookups, -p port 4444. This is the 'answer the phone' side of a reverse shell."
+      },
+      {
+        "cmd": "nc 127.0.0.1 4444",
+        "explain": "Connects to your own listener on localhost, simulating a target calling home; whatever you type travels between the two terminals."
+      },
+      {
+        "cmd": "msfconsole -q -x 'search type:exploit smb; exit'",
+        "explain": "Launches Metasploit quietly and lists SMB exploit modules so you can browse how exploits are catalogued, without running anything."
+      }
+    ],
+    "safety": "Run the listener and connection only on your own machine (127.0.0.1) or between VMs you own, like Metasploitable 2 in VirtualBox. Never point exploits or shells at systems you do not own."
+  },
+  "hunt": "Scenario: Your company's web server normally only receives connections on port 443. Your monitoring shows it suddenly made an outbound connection to 203.0.113.9 on port 4444, and the process that opened it was `/bin/bash`. What is going on? Answer: This is almost certainly a reverse shell. A web server should serve requests, not start outbound connections, and it should never have bash dialing an external IP on an odd port like 4444. An attacker likely exploited the app, dropped a payload, and the server is now calling home to their listener. Isolate the host, kill the connection, and investigate how the shell was obtained.",
+  "terms": [
+    { "term": "Exploit", "def": "A technique that abuses a specific vulnerability to make a target run your code.", "use": "The exploit worked, but we still needed the right payload." },
+    { "term": "Payload", "def": "The code that runs after an exploit succeeds, deciding what you gain.", "use": "We swapped the payload from a bind shell to a reverse shell." },
+    { "term": "Shell", "def": "Command-line access to a machine; the prize of most exploitation.", "use": "We got a shell on the box as the web-server user." },
+    { "term": "Bind shell", "def": "A shell that listens on the target and waits for the attacker to connect in.", "use": "The firewall blocked the bind shell's inbound port." },
+    { "term": "Reverse shell", "def": "A shell where the target connects out to the attacker's listener, slipping past firewalls.", "use": "Egress was open, so a reverse shell called straight home." },
+    { "term": "Listener", "def": "A program waiting on a port to catch an incoming connection, like netcat.", "use": "Start the listener before you trigger the reverse shell." },
+    { "term": "Meterpreter", "def": "Metasploit's feature-rich payload giving a powerful session beyond a bare shell.", "use": "Meterpreter let us screenshot and pivot in one session." }
+  ],
+  "quiz": [
+    {
+      "q": "What is the difference between an exploit and a payload?",
+      "options": [
+        "They are the same thing",
+        "The exploit is the way in; the payload is the code that runs once you are in",
+        "The payload breaks the lock; the exploit decides what to steal",
+        "The exploit is hardware, the payload is software"
+      ],
+      "answer": 1,
+      "why": "The exploit abuses the bug to get code running; the payload is that code and what it does."
+    },
+    {
+      "q": "Why are reverse shells more common than bind shells in practice?",
+      "options": [
+        "They are faster to type",
+        "Firewalls usually block inbound connections but allow outbound, so the target calls home",
+        "Bind shells require a password",
+        "Reverse shells are encrypted by default"
+      ],
+      "answer": 1,
+      "why": "Outbound traffic is rarely blocked, so making the target connect out defeats inbound firewall rules."
+    },
+    {
+      "q": "What does `nc -lvnp 4444` do?",
+      "options": [
+        "Connects to a remote host on port 4444",
+        "Scans port 4444",
+        "Starts a verbose listener on port 4444 to catch an incoming connection",
+        "Encrypts traffic on port 4444"
+      ],
+      "answer": 2,
+      "why": "-l listen, -v verbose, -n no DNS, -p port 4444 sets up netcat as a listener waiting for a connection."
+    },
+    {
+      "q": "In Metasploit, what does LHOST usually represent?",
+      "options": [
+        "The target's IP",
+        "The attacker's own IP where the session should connect back",
+        "The local hostname of the target",
+        "The listening port number"
+      ],
+      "answer": 1,
+      "why": "LHOST is your machine's address so a reverse payload knows where to call home."
+    },
+    {
+      "q": "Which behavior most strongly suggests a reverse shell to a defender?",
+      "options": [
+        "A user logging in during work hours",
+        "A web server process like bash making an outbound connection on an odd port",
+        "High CPU during a backup",
+        "A DNS query to a known domain"
+      ],
+      "answer": 1,
+      "why": "A server spawning a shell that dials an external host on an unusual port is a classic reverse-shell signature."
+    }
+  ],
+  "talk": {
+    "scenario": "A junior analyst asks: 'We found a vulnerability scanner result, but what does actually exploiting it even look like?'",
+    "model": "Exploiting it means using the bug to get our code running on the target, then attaching a payload that gives us control, usually a shell. In practice we would set up a listener, often with netcat or Metasploit, and use a reverse shell so the target connects back out past its firewall. Metasploit organizes the exploit and payload for known CVEs, so we pick the module, set the target and our LHOST, and catch the session. The defensive flip side is just as useful: that same picture tells us to watch for servers making odd outbound connections or spawning unexpected shells."
+  },
+  "reflect": "Explain in your own words, as if to a non-technical friend, why a reverse shell gets past a firewall that a bind shell cannot. What everyday analogy made it click for you?"
+}

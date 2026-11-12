@@ -1,0 +1,204 @@
+{
+  "day": 25,
+  "week": 5,
+  "title": "Hacking Humans: Phishing, Malware & Ransomware",
+  "theme": "Malware & Social Engineering",
+  "minutes": 45,
+  "mindset": "The easiest door into a company is usually a person who wants to be helpful.",
+  "cards": [
+    {
+      "title": "Why attackers target people",
+      "body": "Firewalls, patches and encryption make the technical walls tall. But every company has people who open mail, answer phones and want to help. **Social engineering** means tricking a person into doing something that helps the attacker: clicking a link, sharing a password, approving a payment. Think of a burglar who skips picking the lock and simply knocks, wearing a delivery uniform. The attacker's question is: 'Why fight the lock when someone inside will open the door for me?'"
+    },
+    {
+      "title": "Anatomy of a phishing email",
+      "body": "**Phishing** is a fake message designed to make you act. Most have the same parts:\n- **A believable sender** (a lookalike domain like `micros0ft-support.com`).\n- **A hook**: urgency, fear or reward ('Your account closes in 24 hours').\n- **A call to action**: a link to a fake login page or an attachment.\n- **A payload**: the stolen password or the malware that runs.\nIt is like a fake parking ticket on your windshield with a QR code to 'pay now'. Pressure stops you from checking whether it is real."
+    },
+    {
+      "title": "Pretexting and vishing",
+      "body": "A **pretext** is a made-up story that gives the attacker a reason to ask for something. 'Hi, this is Sam from IT, we are migrating mailboxes, can you read me the code you just received?' When done by phone it is called **vishing** (voice phishing); by SMS it is **smishing**. Attackers research names, job titles and internal jargon on LinkedIn first, so the story sounds right. The defence is a habit: hang up and call back using a number you already trust."
+    },
+    {
+      "title": "What malware is",
+      "body": "**Malware** is any software built to harm or control a computer without the owner's consent. Common families:\n- **Virus/worm**: copies itself; a worm spreads over the network on its own.\n- **Trojan**: pretends to be useful (a 'free PDF tool') but hides a harmful part.\n- **Infostealer**: grabs saved browser passwords and session cookies.\n- **Ransomware**: locks your files and demands payment.\nThink of a trojan as a gift box with a thief folded inside."
+    },
+    {
+      "title": "Ransomware and double extortion",
+      "body": "**Ransomware** encrypts files so only the attacker has the key, then demands payment, usually in cryptocurrency. Modern gangs first quietly copy data out, then encrypt it, and threaten to publish the stolen data if you do not pay. This is **double extortion**: even good backups do not fully save you. It is like a burglar who changes your locks *and* photocopies your diary. Attackers aim for backup servers early, because deleting backups raises the chance the victim pays."
+    },
+    {
+      "title": "Command and control (C2)",
+      "body": "Once malware runs, it needs instructions. It 'phones home' to an attacker server called **command and control (C2)**. The infected machine checks in regularly, a pattern called **beaconing**, like a spy calling a handler every hour at the same time. Attackers hide C2 traffic inside normal-looking HTTPS or DNS so it blends in. Defenders hunt for it by spotting machines that contact rare domains on a suspiciously regular schedule."
+    },
+    {
+      "title": "Office macros and why they were locked down",
+      "body": "A **macro** is a small program inside a Word or Excel file that automates tasks. For years, attackers sent invoices that said 'Click Enable Content to view'. That click let the macro run and download malware. In 2022 Microsoft began blocking macros by default in files downloaded from the internet (marked with the 'Mark of the Web'). Attackers adapted by switching to ISO, ZIP, LNK and OneNote files. Lesson: when one door closes, attackers test the next unlocked window."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Credential phishing",
+      "analogy": "A fake bank branch built across the street from the real one, with a friendly clerk who writes down your PIN.",
+      "how": [
+        "Attacker registers a lookalike domain and copies the real login page.",
+        "Sends an urgent email ('unusual sign-in detected') linking to the fake page.",
+        "Victim types username and password, which are saved by the attacker.",
+        "Attacker logs into the real service; advanced kits also relay the MFA code in real time."
+      ],
+      "thinking": "Which login page does everyone here use daily (Microsoft 365, Okta, payroll)? If I copy that, nobody will look twice.",
+      "signs": "New lookalike domains in mail logs, many users clicking the same link, logins from unusual countries or new devices right after the email arrived, users reporting the message.",
+      "defend": "Phishing-resistant MFA (FIDO2 security keys or passkeys), email filtering with SPF/DKIM/DMARC checks, a one-click 'Report phish' button, and training that rewards reporting instead of shaming mistakes."
+    },
+    {
+      "name": "Ransomware intrusion",
+      "analogy": "A burglar who sneaks in, maps every room for a week, steals valuables, then chains every door shut and leaves a ransom note.",
+      "how": [
+        "Initial access through phishing, a stolen VPN password or an unpatched internet-facing server.",
+        "Attacker explores the network, steals more credentials and finds backups.",
+        "Data is copied out to attacker storage (exfiltration).",
+        "Encryption is launched across many machines at once, often at night or on a weekend, and a ransom note appears."
+      ],
+      "thinking": "Where are the backups, who are the admins, and when is the IT team asleep? Maximum pain means maximum chance of payment.",
+      "signs": "Unusual admin logins, mass file renames with new extensions, deletion of shadow copies, large outbound data transfers, backup jobs suddenly failing.",
+      "defend": "Patch internet-facing systems, MFA on VPN and remote access, offline or immutable backups that are tested, least privilege for admin accounts, EDR (endpoint detection and response) and a rehearsed incident response plan."
+    }
+  ],
+  "story": {
+    "title": "Colonial Pipeline ransomware (2021)",
+    "body": "In May 2021 the DarkSide ransomware group hit Colonial Pipeline, which carries about 45% of the fuel used on the US East Coast. The company shut down the pipeline for several days as a precaution, causing fuel shortages and panic buying. Its CEO later told the US Senate that attackers got in through a legacy VPN account that used a compromised password and had no multi-factor authentication. Colonial paid about $4.4 million in bitcoin; the FBI later recovered part of it. Lesson: one forgotten account without MFA can stop a nation's fuel supply."
+  },
+  "lab": {
+    "title": "Dissect a phishing email safely",
+    "goal": "Read raw email headers and spot the red flags a mail analyst checks, using a harmless sample you create yourself.",
+    "steps": [
+      "Create a fake email file with headers that contain classic phishing signs (the command below writes it for you).",
+      "Read the headers: compare the visible 'From' with 'Return-Path' and 'Reply-To'.",
+      "Check the authentication results line for SPF, DKIM and DMARC failures.",
+      "Extract every link and compare the visible text with the real domain.",
+      "Optional: in your real mail client, use 'Show original' on a spam message from your own inbox and repeat the checks."
+    ],
+    "commands": [
+      {
+        "cmd": "printf 'From: \"IT Helpdesk\" <it@yourcompany.com>\\nReturn-Path: <bounce@mail-yourcompany-support.top>\\nReply-To: helpdesk@yourc0mpany.net\\nAuthentication-Results: mx.local; spf=fail; dkim=none; dmarc=fail\\nSubject: URGENT: password expires today\\n\\nClick https://yourcompany-login.top/reset to keep your account.\\n' > phish.eml",
+        "explain": "Writes a fake, harmless email into `phish.eml`. `printf` prints text and `\\n` makes new lines; `>` saves it to a file."
+      },
+      {
+        "cmd": "grep -iE '^(From|Return-Path|Reply-To|Authentication-Results):' phish.eml",
+        "explain": "`grep` finds lines; `-i` ignores case, `-E` allows the `(a|b)` 'either/or' pattern, `^` means 'start of line'. Shows only the headers analysts check first."
+      },
+      {
+        "cmd": "grep -oE 'https?://[^ ]+' phish.eml",
+        "explain": "`-o` prints only the matching part. The pattern grabs every http or https link so you can inspect the real domain."
+      },
+      {
+        "cmd": "whois yourcompany-login.top | head -n 20",
+        "explain": "Asks the domain registry who owns the domain and when it was created. Real phishing domains are often only days old. (This sample domain may not exist; try it on a domain from a real spam message.)"
+      },
+      {
+        "cmd": "sha256sum phish.eml",
+        "explain": "Calculates a unique fingerprint (hash) of the file. Analysts share hashes so others can block or look up the same file without passing the file around."
+      }
+    ],
+    "safety": "Only work with the sample you create or spam already in your own inbox. Never click links or open attachments from real suspicious mail; never send test phishing to anyone without a written, authorised awareness-testing engagement."
+  },
+  "hunt": "Finance receives an email from the CEO's name, sent from a Gmail address, on a Friday at 5:40 pm: 'I'm in a meeting, need you to wire $48,000 to a new supplier today. Keep this confidential.' The clerk replies to confirm and pays. What went wrong, and which control would have stopped it?\n\nAnswer: This is **business email compromise (BEC)**. Red flags: external address using an executive's name, urgency, secrecy, end-of-week timing, a new payee. Replying to the same email only reaches the attacker. The fix is a process control: any new payee or bank-detail change needs an out-of-band call to a known number and a second approver, plus a mail banner that flags external senders.",
+  "terms": [
+    {
+      "term": "Phishing",
+      "def": "A fake message that tricks someone into clicking, sharing secrets or running something harmful.",
+      "use": "\"The initial access vector was a credential phishing email impersonating the SSO portal.\""
+    },
+    {
+      "term": "Pretexting",
+      "def": "Inventing a believable story or role so a request seems normal.",
+      "use": "\"The caller used an IT-migration pretext to get the user to read out their MFA code.\""
+    },
+    {
+      "term": "Ransomware",
+      "def": "Malware that encrypts or steals data and demands payment to restore or not leak it.",
+      "use": "\"Our ransomware readiness depends on immutable backups we actually test restoring.\""
+    },
+    {
+      "term": "C2 (Command and Control)",
+      "def": "The attacker's server and channel used to send instructions to infected machines.",
+      "use": "\"We saw beaconing every 60 seconds to a fresh domain, which looks like C2.\""
+    },
+    {
+      "term": "IOC (Indicator of Compromise)",
+      "def": "A clue that an attack happened, like a malicious file hash, domain or IP address.",
+      "use": "\"Push the IOCs from the phishing campaign into the email gateway and the firewall blocklist.\""
+    },
+    {
+      "term": "BEC (Business Email Compromise)",
+      "def": "Fraud where attackers pose as an executive or supplier by email to redirect payments.",
+      "use": "\"It's a BEC attempt, so verify the bank change by phone before finance does anything.\""
+    },
+    {
+      "term": "DMARC",
+      "def": "An email standard that tells receiving servers what to do with mail that fails SPF/DKIM checks for your domain.",
+      "use": "\"Move DMARC to p=reject so nobody can spoof our exact domain.\""
+    }
+  ],
+  "quiz": [
+    {
+      "q": "What makes double-extortion ransomware worse than older ransomware?",
+      "options": [
+        "It encrypts faster",
+        "Attackers steal data before encrypting and threaten to leak it",
+        "It only targets backups",
+        "It cannot be detected by antivirus"
+      ],
+      "answer": 1,
+      "why": "Data is exfiltrated first, so even a victim with perfect backups faces the threat of public leaks."
+    },
+    {
+      "q": "A caller says they are from IT and asks for the code just texted to you. Best response?",
+      "options": [
+        "Read it out quickly so work isn't disrupted",
+        "Ask for their employee ID, then share it",
+        "Hang up and call the IT helpdesk on the number you already know",
+        "Email them the code instead"
+      ],
+      "answer": 2,
+      "why": "Callback verification on a trusted number defeats pretexting. Real IT never needs your MFA code."
+    },
+    {
+      "q": "Which MFA type best resists real-time phishing proxies?",
+      "options": [
+        "FIDO2 security keys / passkeys",
+        "SMS codes",
+        "Email codes",
+        "Security questions"
+      ],
+      "answer": 0,
+      "why": "FIDO2 checks the website's real domain cryptographically, so a lookalike site cannot reuse the login."
+    },
+    {
+      "q": "A laptop contacts the same unusual domain every 60 seconds, day and night. This most likely indicates:",
+      "options": [
+        "A software update",
+        "DNS caching",
+        "A user browsing",
+        "Malware beaconing to C2"
+      ],
+      "answer": 3,
+      "why": "Very regular check-ins to a rare domain, even when no one is using the machine, is classic C2 beaconing."
+    },
+    {
+      "q": "Why did attackers move from Office macros to ISO/ZIP/LNK files around 2022?",
+      "options": [
+        "Macros stopped working in Office",
+        "Microsoft began blocking internet-downloaded macros by default",
+        "ZIP files are encrypted",
+        "Antivirus cannot read ISO files at all"
+      ],
+      "answer": 1,
+      "why": "Blocking macros in files with the Mark of the Web removed an easy path, so attackers looked for the next one."
+    }
+  ],
+  "talk": {
+    "scenario": "Your manager asks: 'We already have antivirus. Why do we need phishing training and MFA too?'",
+    "model": "Antivirus only catches files it recognises, but most breaches start with a person being tricked into giving away a password, which involves no malware at all. Credential phishing and BEC go straight around the antivirus. Phishing-resistant MFA means a stolen password alone is not enough, and training plus an easy 'report phish' button turns staff into early-warning sensors. It's defence in depth: each layer catches what the others miss."
+  },
+  "reflect": "Think of a time someone asked you for something under time pressure. What emotion did they use, and how could you build a habit that pauses you before acting?"
+}

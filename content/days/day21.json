@@ -1,0 +1,174 @@
+{
+  "day": 21,
+  "week": 4,
+  "title": "The App Behind the App",
+  "theme": "Web - API Security",
+  "minutes": 50,
+  "mindset": "An API has no pretty buttons to stop you. It assumes the app is polite. Attackers are not the app, and they send whatever they like.",
+  "cards": [
+    {
+      "title": "What an API really is",
+      "body": "An **API** (Application Programming Interface) is the waiter between the app you see and the kitchen that holds the data. When you open a mobile app and it shows your orders, it quietly calls something like `GET /api/orders/1052` and gets back JSON. The screen just paints that data. The key insight: the pretty app is only a suggestion. An attacker ignores the screen and talks to the waiter directly, sending any request they want. Every control that lives only in the app's buttons simply does not exist at the API."
+    },
+    {
+      "title": "BOLA: the number-one API flaw",
+      "body": "**Broken Object Level Authorization** (BOLA, the API cousin of IDOR) is the most common API bug. The API returns an object based on an ID you send, but forgets to check that the object is yours. If `GET /api/orders/1052` shows your order, what about `1053`? If the server does not verify ownership, you just read someone else's order. Attackers simply change the number. The fix is boring but vital: on every request, check that the logged-in user is actually allowed to touch that specific object."
+    },
+    {
+      "title": "Mass assignment",
+      "body": "To save typing, frameworks can take a whole JSON body and map it straight onto a database object. Handy, until a user adds a field the form never showed. Suppose updating your profile sends `{\"name\":\"Alice\"}`. What if you send `{\"name\":\"Alice\",\"role\":\"admin\"}`? If the server blindly assigns every field, you just promoted yourself. This is **mass assignment**. The attacker's move is to guess hidden fields like `isAdmin`, `balance`, or `verified` and include them. Defend by allow-listing exactly which fields a user may set."
+    },
+    {
+      "title": "No rate limiting",
+      "body": "A web form might lock you out after five wrong passwords, but the raw API behind it may happily accept thousands of attempts per second. Without **rate limiting** (a cap on how many requests per minute), attackers brute force logins, guess sequential IDs in bulk, scrape entire databases, or run up cloud bills. The attacker asks: how fast can I hammer this with no pushback? Defenders add per-user and per-IP limits, lockouts, and alerts on bursts. Rate limiting will not fix a logic flaw, but it turns a fast attack into a slow, noisy one."
+    },
+    {
+      "title": "Deserialization in plain words",
+      "body": "**Serialization** is turning a live object into a string to store or send (like flat-packing furniture into a box). **Deserialization** rebuilds it (assembling the furniture). The danger: some languages, when rebuilding an object from attacker-supplied data, will also run code embedded in it. A booby-trapped box assembles into a trap. If an app accepts a serialized object from the user and deserializes it unsafely, an attacker can achieve code execution. The rule: never deserialize untrusted data, and prefer simple data formats like plain JSON with strict schemas."
+    },
+    {
+      "title": "Why APIs get breached so often",
+      "body": "APIs power everything now: mobile apps, single-page sites, partner integrations. They are also easy to miss in testing because there is no visible page to click. Documentation leaks endpoints; old versions stay online; developers assume 'only our app calls this'. Attackers map the API from the app's own traffic, then probe each endpoint for missing checks. The professional habit is to treat every endpoint as public and hostile: authenticate it, authorize each object, validate every field, and rate-limit it, no matter how 'internal' it feels."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "BOLA / IDOR on an API",
+      "analogy": "The coat-check gives you any coat whose ticket number you say aloud, never checking the ticket is actually yours.",
+      "how": [
+        "Log in and watch the app call an endpoint like GET /api/invoices/4001",
+        "Change the ID to 4002, 4003, and replay the request",
+        "If the server returns other users' objects, their data is exposed at scale"
+      ],
+      "thinking": "The attacker asks: does the server check this object belongs to me, or does it trust the ID I send? If it trusts the ID, I can enumerate everyone's data.",
+      "signs": "One account requesting many sequential object IDs, high-volume 200 responses across IDs it never owned, scraping-like access patterns.",
+      "defend": "Enforce object-level authorization on every request, use unguessable IDs (UUIDs) as defense in depth, and log and alert on ID enumeration."
+    },
+    {
+      "name": "Mass assignment",
+      "analogy": "A form asks for your name, but you scribble an extra line 'promote me to manager' and the clerk files it as official.",
+      "how": [
+        "Find an endpoint that updates an object from a JSON body",
+        "Add sensitive fields the UI never exposes, such as role or isAdmin",
+        "If the server maps all fields blindly, the privileged field is saved"
+      ],
+      "thinking": "The attacker asks: what hidden properties does this object have, and will the server accept them if I just add them to the request?",
+      "signs": "Requests containing unexpected fields, privilege or balance changes without a corresponding admin action, schema-violating payloads.",
+      "defend": "Allow-list the exact fields a user may set, bind input to a safe data object, and never map raw request bodies straight onto database models."
+    },
+    {
+      "name": "Insecure deserialization",
+      "analogy": "You accept a sealed flat-pack box from a stranger and assemble it indoors; it unfolds into a device that runs their instructions.",
+      "how": [
+        "App accepts a serialized object (cookie, token, upload) from the user",
+        "Attacker crafts a malicious serialized payload with an embedded gadget chain",
+        "On deserialization the runtime executes the embedded behavior, often remote code execution"
+      ],
+      "thinking": "The attacker asks: does this app rebuild complex objects from data I control? If so, I may be able to smuggle executable behavior into the box.",
+      "signs": "Deserialization errors in logs, unexpected object types, new processes or outbound connections right after an object is parsed.",
+      "defend": "Do not deserialize untrusted input; use plain JSON with strict schemas, sign or encrypt serialized data, and keep libraries patched."
+    }
+  ],
+  "story": {
+    "title": "USPS Informed Visibility API (2018)",
+    "body": "A flaw in the US Postal Service's Informed Visibility API let any logged-in account query and modify details for roughly 60 million users. The API accepted a request for account data but failed to check that the requesting user owned the account they asked about, a textbook Broken Object Level Authorization. A researcher found that simply changing parameters returned other people's email, phone, and address data in bulk. There was no exotic exploit, just a missing ownership check on an endpoint everyone assumed only the official site would call. The lesson: authorize every object on every request."
+  },
+  "lab": {
+    "title": "Read an app's API like an attacker",
+    "goal": "Capture and replay API calls to understand endpoints, IDs, and fields, using tools you own.",
+    "steps": [
+      "Pick a target you are permitted to test: a juice-shop you run locally, or PortSwigger/Hack The Box API labs",
+      "Browse the app with Burp Suite or the browser's Network tab open to capture the API calls",
+      "Note the endpoints, the ID in the URL, and the JSON fields in each request",
+      "Replay one request with curl, then try changing the object ID",
+      "Try adding an extra field to a PUT/POST body to probe for mass assignment"
+    ],
+    "commands": [
+      {
+        "cmd": "docker run --rm -p 3000:3000 bkimminich/juice-shop",
+        "explain": "Runs OWASP Juice Shop, a deliberately vulnerable app made for practice, locally on port 3000 so you can legally test APIs."
+      },
+      {
+        "cmd": "curl -s http://localhost:3000/api/Products/1 | python3 -m json.tool",
+        "explain": "Fetches one API object and pretty-prints the JSON so you can see its fields and structure."
+      },
+      {
+        "cmd": "curl -s -X PUT http://localhost:3000/api/Users/1 -H 'Content-Type: application/json' -d '{\"role\":\"admin\"}'",
+        "explain": "Sends an extra 'role' field to a user-update endpoint to test whether the API blindly accepts fields the UI never offers (mass assignment)."
+      }
+    ],
+    "safety": "Only test APIs you own or that explicitly grant permission, like locally-run Juice Shop or labeled lab platforms. Changing object IDs on a live third-party API is illegal."
+  },
+  "hunt": "Scenario: A banking app shows your balance by calling `GET /api/accounts/88213/balance`. You are account 88213. You change the URL to `88214` and it returns a stranger's balance. The app's screen has no 'view other accounts' button. Why did this happen? Answer: This is BOLA. The security was only in the app's buttons, not in the API. The server returned the object purely from the ID without checking it belongs to the logged-in user. An attacker ignores the screen, talks to the API directly, and increments the number to read every account. Every request must verify object ownership server-side.",
+  "terms": [
+    { "term": "API", "def": "The interface apps use to request and send data behind the scenes, usually returning JSON.", "use": "We mapped the API from the mobile app's own traffic." },
+    { "term": "BOLA", "def": "Broken Object Level Authorization: an API returns an object without checking it belongs to the requester.", "use": "That endpoint had BOLA, so we read every user's invoice." },
+    { "term": "Mass assignment", "def": "An API saving every field in a request body, including ones the user should not control.", "use": "Mass assignment let us set role:admin on our own account." },
+    { "term": "Rate limiting", "def": "A cap on how many requests a client may send in a time window, to blunt brute force and scraping.", "use": "There was no rate limiting, so we enumerated IDs in minutes." },
+    { "term": "Serialization", "def": "Turning a live object into a string to store or send; deserialization rebuilds it.", "use": "The session used Java serialization, a deserialization risk." },
+    { "term": "Endpoint", "def": "A specific API URL that performs one action, like /api/orders/1052.", "use": "An old versioned endpoint was still live and unprotected." },
+    { "term": "Insecure deserialization", "def": "Rebuilding an object from untrusted data in a way that can run attacker code.", "use": "Insecure deserialization gave us remote code execution." }
+  ],
+  "quiz": [
+    {
+      "q": "Why can an attacker ignore an app's buttons and still perform actions?",
+      "options": [
+        "The buttons are decorative images",
+        "Security in the UI does not exist at the API; attackers call the API directly",
+        "APIs require no authentication ever",
+        "Browsers block API calls"
+      ],
+      "answer": 1,
+      "why": "The real controls must live server-side at the API, because an attacker sends requests without using the app at all."
+    },
+    {
+      "q": "What is the core mistake in a BOLA vulnerability?",
+      "options": [
+        "The password is too short",
+        "The server returns an object by ID without checking it belongs to the requester",
+        "The API uses HTTPS",
+        "The JSON is too large"
+      ],
+      "answer": 1,
+      "why": "BOLA is a missing object-level ownership check, so changing the ID exposes other users' data."
+    },
+    {
+      "q": "How does mass assignment let a user escalate privileges?",
+      "options": [
+        "By brute forcing the password",
+        "By adding a hidden field like role:admin that the server blindly saves",
+        "By deleting the login page",
+        "By sending requests faster"
+      ],
+      "answer": 1,
+      "why": "If the server maps all submitted fields onto the object, a user can set sensitive fields the UI never exposed."
+    },
+    {
+      "q": "Why is missing rate limiting a problem even if auth is correct?",
+      "options": [
+        "It exposes the server's IP",
+        "It lets attackers brute force, enumerate IDs, or scrape at high speed with no friction",
+        "It disables HTTPS",
+        "It corrupts the database"
+      ],
+      "answer": 1,
+      "why": "Without a request cap, otherwise slow attacks like brute force and bulk scraping become fast and cheap."
+    },
+    {
+      "q": "What makes insecure deserialization dangerous?",
+      "options": [
+        "It uses too much memory",
+        "Rebuilding an object from attacker data can execute embedded code",
+        "It only works over HTTP",
+        "It reveals the serialization library name"
+      ],
+      "answer": 1,
+      "why": "Some runtimes run code while reconstructing objects, so untrusted serialized input can lead to code execution."
+    }
+  ],
+  "talk": {
+    "scenario": "A teammate says: 'Only our mobile app calls this endpoint, so we don't need to check who owns the record.'",
+    "model": "We have to assume every endpoint is public and hostile, because an attacker can read the app's traffic and replay any request without the app at all. That endpoint needs object-level authorization on every call, confirming the logged-in user actually owns the record, which prevents BOLA. We should also allow-list which fields the request can set to avoid mass assignment, and add rate limiting so nobody can enumerate IDs in bulk. 'Only our app calls it' is never a control; the server has to enforce the rules itself."
+  },
+  "reflect": "Open an app you use and imagine the API calls behind one screen. Which object IDs or fields might you be able to change, and what check would the server need to stop you?"
+}

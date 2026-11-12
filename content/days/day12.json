@@ -1,0 +1,184 @@
+{
+  "day": 12,
+  "week": 2,
+  "title": "How Passwords Break",
+  "theme": "Authentication / Credentials",
+  "minutes": 55,
+  "mindset": "Defenders store a fingerprint of your password, not the password itself; understanding that fingerprint is the whole game.",
+  "cards": [
+    {
+      "title": "Hashing vs encryption",
+      "body": "These two get mixed up constantly. **Encryption** is reversible: with the right key you can turn the scrambled text back into the original. **Hashing** is one-way: it turns any input into a fixed-length fingerprint that cannot be reversed back into the input.\n\nAnalogy: encryption is a locked box (the key reopens it). Hashing is a blender: you can blend a fruit into a smoothie, but you cannot un-blend it. Passwords should be **hashed**, never encrypted or stored as plaintext, so even staff who see the database cannot read them."
+    },
+    {
+      "title": "Why hashing protects passwords",
+      "body": "When you sign up, the server computes a hash of your password and stores only that fingerprint. When you log in, it hashes what you typed and compares fingerprints. It never needs the original.\n\nSo why can passwords still be recovered? Because the same password always produces the same hash. An attacker who steals the hash database cannot un-blend it, but they can blend millions of guesses and see which smoothie matches. That is the heart of **password cracking**: guess, hash, compare, repeat."
+    },
+    {
+      "title": "Salts: making each fingerprint unique",
+      "body": "A **salt** is a random value added to each password before hashing, and stored alongside the hash. It means two people with the same password get different hashes.\n\nWithout salts, an attacker can pre-compute a giant lookup table (a **rainbow table**) of common passwords to their hashes and match instantly. A salt breaks that, because the table would have to be rebuilt for every possible salt. Analogy: a salt is a different serial number stamped into each lock, so a master catalogue of 'this key fits this lock' no longer works."
+    },
+    {
+      "title": "Fast vs slow hashes",
+      "body": "Not all hashes suit passwords. **MD5** and **SHA-1/256** are *fast*, designed to fingerprint files quickly. Fast is bad for passwords, because an attacker can test billions of guesses per second on a graphics card.\n\n**bcrypt**, **scrypt** and **Argon2** are deliberately *slow* and memory-hungry, so each guess costs real time. Analogy: a fast hash is a turnstile; a slow hash is a bank vault door that takes ten seconds to open each time. For a real login that delay is invisible; for someone making billions of guesses, it is ruinous."
+    },
+    {
+      "title": "Guess lists vs trying everything",
+      "body": "Two broad approaches to guessing. A **dictionary approach** tries a prepared list of likely passwords (leaked passwords, common words, names) plus simple tweaks like adding a year or swapping letters for numbers. It is fast and usually wins, because people reuse weak passwords.\n\n**Brute force** tries every possible combination of characters. It always works eventually but can take astronomically long for a strong, long password. The lesson for defenders is simple: length and unpredictability beat clever character swaps, because the first approach already knows every common trick."
+    },
+    {
+      "title": "Reusing one password everywhere",
+      "body": "When one website is breached, its list of email-and-password pairs often ends up for sale. Attackers then take those pairs and try them on many *other* sites, betting people reuse passwords. This is **credential stuffing**. A related trick, **password spraying**, takes one common password and tries it against many usernames, which avoids locking any single account.\n\nAnalogy: if a thief finds your house key works on your front door, they go try it on your car, your office and your shed. One reused password can unlock your whole life. This is exactly why unique passwords and MFA matter."
+    },
+    {
+      "title": "Why MFA changes the math",
+      "body": "**Multi-factor authentication (MFA)** requires a second proof beyond the password: a code from an app, a hardware key, a fingerprint. Even if an attacker recovers or guesses the password, they are still missing the second factor.\n\nAnalogy: a stolen house key is useless if the door also needs a fingerprint the thief does not have. MFA does not make passwords unimportant, but it turns a single stolen secret into a dead end. App-based or hardware-key MFA is stronger than SMS codes, which can be intercepted or redirected."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Offline password cracking",
+      "analogy": "A burglar who photographs the shape of your key, goes home, and quietly files thousands of blanks until one fits, with no alarm and no time limit.",
+      "how": [
+        "The attacker first steals a database of password hashes (via SQL injection, a stolen backup, or a breach dump).",
+        "They identify the hash type and whether salts are present.",
+        "Working on their own hardware, they hash huge lists of candidate passwords and compare against the stolen hashes.",
+        "Matches reveal the original passwords, which are then reused against other systems."
+      ],
+      "thinking": "Once I have the hashes, I have unlimited tries with no lockout and no logging. Weak or fast-hashed passwords will fall; the only question is how many.",
+      "signs": "The theft happens earlier: watch for the data exfiltration itself, such as unusual database dumps, large outbound transfers, or access to backup files. The cracking is invisible because it is offline.",
+      "defend": "Use slow, salted hashes (bcrypt/scrypt/Argon2), enforce long unique passwords, add MFA, protect the hash store, and detect the breach early so you can force a password reset before cracking succeeds."
+    },
+    {
+      "name": "Credential stuffing and password spraying",
+      "analogy": "Trying one found key on every lock in the neighbourhood (stuffing), or trying one very common key on thousands of doors, one each so no alarm trips (spraying).",
+      "how": [
+        "The attacker gathers username/password pairs from previous public breaches, or picks one very common password.",
+        "For stuffing, automated tools replay the known pairs against many different websites' login pages.",
+        "For spraying, they try one common password against a long list of usernames, slowly, to avoid lockouts.",
+        "Successful logins give access with valid credentials, which looks normal to many defences."
+      ],
+      "thinking": "People reuse passwords and pick predictable ones. I do not need to beat the login; I just need the small percentage who reused a leaked or common password.",
+      "signs": "Many failed logins across many accounts from shared infrastructure, a spike in logins from new locations or devices, one password failing against many usernames, impossible-travel sign-ins.",
+      "defend": "MFA (the single biggest help), block known-breached passwords at sign-up, rate-limit and monitor logins, use device and location risk checks, and never reuse passwords yourself."
+    }
+  ],
+  "story": {
+    "title": "LinkedIn breach and its long tail (2012, exposed 2016)",
+    "body": "In 2012, attackers stole account data from LinkedIn. The passwords had been hashed with unsalted SHA-1, a fast hash with no per-user salt, which made large-scale cracking far easier. At first only about 6.5 million hashes circulated, but in 2016 a much larger set, around 117 million email-and-password pairs, appeared for sale. Those recovered credentials fuelled years of credential-stuffing attacks on other services, because so many people had reused the passwords. **Lesson:** unsalted fast hashes are a gift to crackers, and one breach keeps causing harm for years through password reuse. Salt, use slow hashes, and never reuse passwords."
+  },
+  "lab": {
+    "title": "Create and recover hashes you own",
+    "goal": "See hashing firsthand, then use John the Ripper and hashcat to recover simple passwords from hashes you generate yourself, understanding exactly why weak ones fall fast.",
+    "steps": [
+      "Generate an MD5 and a SHA-256 hash of a sample word and notice they are fixed length no matter the input.",
+      "Create a tiny file of hashes for three weak passwords you choose (e.g. 'password', 'summer2024', 'qwerty').",
+      "Run John the Ripper against that file using the built-in rockyou wordlist (decompress it first) and watch which fall and how fast.",
+      "Repeat with hashcat to see the graphics-card approach and its speed readout.",
+      "Now hash a long random passphrase and try the same attack. Notice it does not appear in the wordlist, so a dictionary run fails.",
+      "Write down why length and unpredictability beat character-swapping tricks."
+    ],
+    "commands": [
+      {
+        "cmd": "echo -n 'password' | md5sum",
+        "explain": "`echo -n` prints the word with no trailing newline; the pipe sends it to `md5sum`, which prints its MD5 hash. Same input always gives the same fingerprint."
+      },
+      {
+        "cmd": "sudo gunzip -k /usr/share/wordlists/rockyou.txt.gz",
+        "explain": "Kali ships the famous rockyou wordlist (real leaked passwords) compressed. `gunzip -k` decompresses it while keeping the original. It is for practice cracking of your own hashes."
+      },
+      {
+        "cmd": "printf '%s\\n' \"$(echo -n password | md5sum | cut -d' ' -f1)\" > myhashes.txt",
+        "explain": "Builds a small file containing one MD5 hash you generated yourself, so you are only ever attacking your own test data."
+      },
+      {
+        "cmd": "john --format=raw-md5 --wordlist=/usr/share/wordlists/rockyou.txt myhashes.txt",
+        "explain": "`john` (John the Ripper) tries each word in the list, hashes it as raw MD5, and compares. `--format` tells it the hash type. Cracked results are shown and saved."
+      },
+      {
+        "cmd": "john --show --format=raw-md5 myhashes.txt",
+        "explain": "`--show` prints the passwords John has already recovered for that file from its records."
+      },
+      {
+        "cmd": "hashcat -m 0 -a 0 myhashes.txt /usr/share/wordlists/rockyou.txt",
+        "explain": "`hashcat` is the GPU-based cracker. `-m 0` means MD5, `-a 0` means a straight wordlist attack. It reports its guessing speed, showing why fast hashes are risky."
+      }
+    ],
+    "safety": "Only ever create and crack hashes of passwords you made up yourself for this exercise. Cracking hashes you obtained from any real system, account or person, without written permission, is illegal. Hydra and other online login-guessing tools must only be pointed at your own VMs (e.g. Metasploitable 2) on an isolated network, never at real services, because online guessing locks out real users and is clearly unauthorised access."
+  },
+  "hunt": "You review a web app's database design. Passwords are stored as `SHA256(password)` with no salt, and the login code compares the submitted hash to the stored one. The developer says 'SHA-256 is unbreakable, so we're fine.' What is wrong?\n\nAnswer: SHA-256 is a strong hash for files, but it is *fast* and here it is *unsalted*, which is exactly wrong for passwords. No salt means identical passwords share a hash and precomputed tables apply; fast means billions of guesses per second if the database leaks. 'Unbreakable' confuses collision-resistance with resistance to guessing. Fix: use a slow, salted, purpose-built password hash such as bcrypt, scrypt or Argon2, and add MFA so a leaked hash is not game over.",
+  "terms": [
+    {
+      "term": "Hash",
+      "def": "A one-way fingerprint of data; the same input always gives the same fixed-length output, and you cannot reverse it back.",
+      "use": "Store the hash of the password, never the password itself."
+    },
+    {
+      "term": "Salt",
+      "def": "A random value added to each password before hashing so identical passwords get different hashes.",
+      "use": "No salt on these hashes, so rainbow tables will tear through them."
+    },
+    {
+      "term": "Rainbow table",
+      "def": "A precomputed lookup of common passwords to their hashes, used to reverse unsalted hashes instantly.",
+      "use": "Salting is what makes rainbow tables useless against us."
+    },
+    {
+      "term": "Credential stuffing",
+      "def": "Replaying username/password pairs stolen from one breach against many other sites, betting on password reuse.",
+      "use": "The login spike is credential stuffing from last month's breach dump."
+    },
+    {
+      "term": "Password spraying",
+      "def": "Trying one common password against many usernames, slowly, to avoid triggering account lockouts.",
+      "use": "They sprayed 'Winter2025!' across the whole staff directory and got three hits."
+    },
+    {
+      "term": "MFA",
+      "def": "Multi-factor authentication: requiring a second proof, like an app code or hardware key, in addition to a password.",
+      "use": "Even with the password cracked, MFA stopped them cold."
+    },
+    {
+      "term": "Argon2",
+      "def": "A modern, deliberately slow and memory-hard hashing algorithm designed specifically for storing passwords.",
+      "use": "We migrated from unsalted SHA-256 to Argon2 for all new passwords."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "What is the key difference between hashing and encryption?",
+      "options": ["Hashing is one-way and cannot be reversed; encryption is reversible with a key", "Hashing is for Windows, encryption for Linux", "Encryption is one-way; hashing is reversible", "They are identical"],
+      "answer": 0,
+      "why": "Hashing produces a fingerprint that cannot be turned back into the input; encryption can be decrypted with the right key."
+    },
+    {
+      "q": "Why is a salt important for stored passwords?",
+      "options": ["It encrypts the password", "It makes identical passwords produce different hashes, defeating precomputed tables", "It speeds up login", "It hides the username"],
+      "answer": 1,
+      "why": "A unique salt per user means attackers cannot reuse one big lookup table and cannot see which users share a password."
+    },
+    {
+      "q": "Why are MD5 and SHA-256 poor choices for storing passwords?",
+      "options": ["They are illegal", "They are too slow", "They are fast, so attackers can test billions of guesses per second", "They cannot be salted"],
+      "answer": 2,
+      "why": "Being fast is good for files but bad for passwords; slow hashes like bcrypt or Argon2 make guessing far more costly."
+    },
+    {
+      "q": "An attacker takes one password and tries it against thousands of usernames, one try each. What is this called?",
+      "options": ["Credential stuffing", "Rainbow tabling", "Password spraying", "Phishing"],
+      "answer": 2,
+      "why": "Password spraying uses one password across many accounts to avoid locking any single one out."
+    },
+    {
+      "q": "Why did the 2012 LinkedIn passwords crack so easily?",
+      "options": ["They used Argon2", "They were encrypted", "They were hashed with unsalted, fast SHA-1", "They were stored in plaintext"],
+      "answer": 2,
+      "why": "Unsalted SHA-1 is fast and allows precomputation, so large-scale cracking was straightforward once the hashes leaked."
+    }
+  ],
+  "talk": {
+    "scenario": "A developer says: 'We hash passwords with SHA-256, so even if the database leaks we're safe.'",
+    "model": "Hashing is the right instinct, but the choice matters. SHA-256 is fast and, if it's unsalted, attackers can use precomputed tables and test billions of guesses per second if the database leaks. For passwords we want a slow, salted, purpose-built hash like bcrypt, scrypt or Argon2, which makes each guess expensive. On top of that I'd add MFA and block known-breached passwords at sign-up, so a leaked hash or a reused password isn't instant game over."
+  },
+  "reflect": "Think about your own passwords. Where might you be reusing one, and which account would hurt most if that reuse led to credential stuffing? What is the first change you will make today?"
+}

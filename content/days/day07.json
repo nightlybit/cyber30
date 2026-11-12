@@ -1,0 +1,176 @@
+{
+  "day": 7,
+  "week": 2,
+  "title": "Think Like a Burglar Casing a House",
+  "theme": "Threat Modeling",
+  "minutes": 45,
+  "mindset": "Before you ask 'how do I break in?', ask 'what is worth stealing, and which doors lead to it?'",
+  "cards": [
+    {
+      "title": "What is threat modeling?",
+      "body": "**Threat modeling** is sitting down *before* anything goes wrong and asking four questions: What are we building? What can go wrong? What will we do about it? Did we do a good job?\n\nThink of a family planning a holiday. Before leaving, they walk around the house: the back window is loose, the spare key is under the mat, the dog flap is big. Nobody has broken in yet, but they already know where a burglar would try. That walk-around is a threat model."
+    },
+    {
+      "title": "Assets: what is worth protecting",
+      "body": "An **asset** is anything valuable to you or to an attacker: customer data, passwords, money, a server's computing power, even a company's reputation.\n\nIn a bank, the vault is the obvious asset, but so are the staff ID badges and the alarm codes, because they lead to the vault. Attackers think the same way. They rarely want *your* laptop; they want what your laptop can reach. Always list assets first, because they tell you where the attacker is heading."
+    },
+    {
+      "title": "Attack surface: every door and window",
+      "body": "The **attack surface** is the sum of every place an attacker can touch your system: open network ports, login pages, file uploads, APIs, email inboxes, USB ports, even the helpdesk phone number.\n\nA house with one door is easier to guard than a house with twenty doors, five windows and a garage. Every new feature, service or employee adds a door. Defenders try to **shrink** the surface (close what is not needed). Attackers try to **map** it completely, because the forgotten door is usually the unlocked one."
+    },
+    {
+      "title": "Trust boundaries: where the rules change",
+      "body": "A **trust boundary** is any line where data or a user moves from a less-trusted zone to a more-trusted one. Examples: internet to web server, web server to database, normal user to admin.\n\nPicture an airport. Anyone can enter the check-in hall, but crossing security into the gate area requires checks. Trust boundaries are those security gates. Attackers focus on them, asking: 'Does the gate actually check everything, or does it trust whatever comes from the inside?' Most serious bugs live right at these crossings."
+    },
+    {
+      "title": "STRIDE: a checklist of what can go wrong",
+      "body": "Microsoft's **STRIDE** gives six kinds of threat to check at each trust boundary:\n- **S**poofing: pretending to be someone else (fake ID).\n- **T**ampering: changing data you should not (editing a cheque).\n- **R**epudiation: denying you did something, with no proof either way.\n- **I**nformation disclosure: leaking secrets (reading someone's post).\n- **D**enial of service: blocking others (jamming the shop door).\n- **E**levation of privilege: gaining powers you should not have (a guest getting the master key).\nEach letter is a question to ask."
+    },
+    {
+      "title": "Attack trees: planning backwards",
+      "body": "An **attack tree** puts the attacker's goal at the top (e.g. 'read the CEO's email') and branches downward into every way to reach it: phish the CEO, steal their phone, guess the password, bribe the IT admin. Each branch splits further into smaller steps.\n\nIt is like planning a route on a map from the destination back to your house. Attackers do this naturally: they pick the **cheapest, quietest branch**. Defenders use the tree to find which single fix cuts off the most branches."
+    },
+    {
+      "title": "The attacker only needs one path",
+      "body": "Defenders must protect every door; attackers only need one that opens. This is called the **defender's dilemma**.\n\nThat is why professionals think in **layers** (also called **defense in depth**): a fence, then a locked door, then an alarm, then a safe. If one layer fails, the next one still stands. When you threat model, never ask 'is this secure?' Ask 'if this fails, what stops the attacker next?' That single question separates beginners from professionals."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "Third-party trust abuse (pivoting through a supplier)",
+      "analogy": "A thief cannot get past the office reception, so they steal the cleaning company's keycard, which opens every floor at night.",
+      "how": [
+        "The attacker maps who the target trusts: suppliers, contractors, IT service providers, software vendors.",
+        "They pick the supplier with the weakest security and compromise it, often with a phishing email.",
+        "They use the supplier's legitimate access (VPN login, remote support tool, software update) to cross the target's trust boundary.",
+        "Once inside, they move sideways toward the real asset because the network trusts traffic from 'friendly' accounts."
+      ],
+      "thinking": "The front door is guarded. Who already has a key? Which partner connects into this network, and do they care about security as much as the target does?",
+      "signs": "Vendor accounts logging in at odd hours or from new locations, vendor accounts touching systems unrelated to their job, unusual data volumes leaving through a partner connection.",
+      "defend": "Give suppliers the least access they need, isolate them in a separate network segment, require MFA on all remote access, review and expire vendor accounts, and include suppliers in your threat model."
+    },
+    {
+      "name": "Forgotten-asset entry (shadow IT)",
+      "analogy": "The family locks every door but forgets the old coal chute in the basement that nobody has used in years.",
+      "how": [
+        "The attacker enumerates everything the organisation owns: subdomains, old test servers, staging sites, cloud storage.",
+        "They look for assets no one is maintaining: unpatched, default passwords, debug mode turned on.",
+        "They break into the neglected asset because nobody is watching it.",
+        "From there they reach the trusted internal network or reuse credentials found on it."
+      ],
+      "thinking": "The main website is probably hardened. What did they build in 2019 for a demo and forget to switch off?",
+      "signs": "Traffic to hosts that are not in the asset inventory, logins to dormant accounts, alerts from servers nobody claims to own.",
+      "defend": "Keep an up-to-date asset inventory, scan your own external attack surface regularly, decommission old systems properly, and assign an owner to every server."
+    }
+  ],
+  "story": {
+    "title": "Target data breach (2013)",
+    "body": "In late 2013, attackers stole about 40 million payment card numbers from US retailer Target. They did not attack Target first. They phished Fazio Mechanical, a heating and air-conditioning contractor that had network credentials for Target's supplier portal. Using those credentials, the attackers crossed into Target's network and eventually reached the point-of-sale tills, where malware scraped card data from memory. Security alerts did fire, but they were not acted on in time. **Lesson:** a supplier's login is a trust boundary. Threat models must include third parties, and the network must stop a vendor account from ever reaching the payment systems."
+  },
+  "lab": {
+    "title": "Threat model your own Kali machine",
+    "goal": "List the attack surface of your own Kali VM (open ports, running services, network interfaces) and write a mini STRIDE table for it.",
+    "steps": [
+      "Open a terminal on your Kali VM.",
+      "List your network interfaces and addresses to see which networks the machine touches.",
+      "List every port your machine is listening on, and which program owns it. Each is a 'door'.",
+      "List running services and ask, for each one: do I actually need this?",
+      "On paper, draw your machine in the middle, the internet and your home network around it, and mark trust boundaries.",
+      "For your top two listening services, write one STRIDE threat each (e.g. 'Spoofing: someone logs into SSH as me')."
+    ],
+    "commands": [
+      {
+        "cmd": "ip -brief address",
+        "explain": "`ip` is the network tool; `address` lists your network interfaces; `-brief` shows one tidy line each. Every interface is a road into your machine."
+      },
+      {
+        "cmd": "sudo ss -tulpn",
+        "explain": "`ss` shows sockets (network connections). `-t` TCP, `-u` UDP, `-l` only listening ones (open doors), `-p` show which program, `-n` show numbers instead of names. `sudo` is needed to see program names."
+      },
+      {
+        "cmd": "systemctl list-units --type=service --state=running",
+        "explain": "Lists every background service currently running. Anything you do not recognise or need is extra attack surface."
+      },
+      {
+        "cmd": "sudo lsof -i -P -n",
+        "explain": "`lsof` lists open files; `-i` limits it to network connections; `-P` and `-n` show raw port numbers and IPs. A second view of who is talking on the network."
+      }
+    ],
+    "safety": "Everything in this lab runs only on your own Kali VM and only reads information. Do not stop services you do not understand on a work machine; on your own VM it is fine to experiment and reboot."
+  },
+  "hunt": "A small company runs an online shop. The website talks to a database. To make life easier, the developers gave the website's database account full admin rights, and the database also accepts connections directly from the internet so they can debug from home. What is wrong?\n\nAnswer: Two broken trust boundaries. First, the website account has far more power than it needs (violates least privilege), so any bug in the website, such as SQL injection, becomes full database takeover (Elevation of privilege). Second, the database is exposed to the internet, so the attack surface includes a door that should be internal only. Fix: a limited database account, and allow database connections only from the web server or a VPN.",
+  "terms": [
+    {
+      "term": "Threat model",
+      "def": "A structured description of what you are protecting, who might attack it, how, and what you will do about it.",
+      "use": "Before we ship the new payment feature, let's update the threat model."
+    },
+    {
+      "term": "Attack surface",
+      "def": "All the points where an attacker can try to enter or extract data from a system.",
+      "use": "Turning off that legacy FTP server shrinks our attack surface."
+    },
+    {
+      "term": "Trust boundary",
+      "def": "A line where data or users pass between zones with different levels of trust, so checks are needed.",
+      "use": "The API gateway is the trust boundary, so all input validation has to happen there."
+    },
+    {
+      "term": "STRIDE",
+      "def": "A checklist of six threat types: Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege.",
+      "use": "Running STRIDE over the login flow, the biggest gap is repudiation: we don't log failed logins."
+    },
+    {
+      "term": "Attack tree",
+      "def": "A diagram with the attacker's goal at the top and every possible way to reach it branching below.",
+      "use": "The attack tree shows that MFA on the VPN cuts off most of the cheap branches."
+    },
+    {
+      "term": "Defense in depth",
+      "def": "Using several independent layers of protection so one failure does not mean total compromise.",
+      "use": "Even if the WAF misses it, defense in depth means the database account can't read card data."
+    },
+    {
+      "term": "Least privilege",
+      "def": "Giving every user, program or account only the minimum access it needs to do its job.",
+      "use": "The vendor account broke least privilege: an HVAC contractor never needed a route to the tills."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "In STRIDE, what does the 'E' stand for?",
+      "options": ["Encryption failure", "Elevation of privilege", "Exfiltration", "Exposure of data"],
+      "answer": 1,
+      "why": "E is Elevation of privilege: gaining permissions you should not have, like a normal user becoming admin."
+    },
+    {
+      "q": "Which of these is the best example of a trust boundary?",
+      "options": ["Two files in the same folder", "A CPU and its cache", "The point where internet traffic reaches your web server", "Two tabs in your browser showing the same site"],
+      "answer": 2,
+      "why": "Internet traffic is untrusted; your server is trusted. Where they meet, checks must happen. That is a trust boundary."
+    },
+    {
+      "q": "Why do attackers love forgotten assets like old test servers?",
+      "options": ["They are usually unpatched and unmonitored", "They are faster", "They are legally allowed to attack them", "They always hold the most valuable data"],
+      "answer": 0,
+      "why": "Nobody maintains or watches them, so they often have old bugs, default passwords and no alerting."
+    },
+    {
+      "q": "An attacker draws a tree with 'steal payroll data' at the top. What are they making?",
+      "options": ["A network map", "A STRIDE table", "A risk register", "An attack tree"],
+      "answer": 3,
+      "why": "An attack tree starts with the goal and branches into all the ways to reach it, so the attacker can pick the cheapest path."
+    },
+    {
+      "q": "What is the main lesson of the Target 2013 breach for threat modeling?",
+      "options": ["Use longer passwords", "Third-party access is a trust boundary that must be limited and watched", "Card readers cannot be secured", "Antivirus is enough"],
+      "answer": 1,
+      "why": "The attackers entered with a contractor's credentials. The supplier's access should never have reached the payment systems."
+    }
+  ],
+  "talk": {
+    "scenario": "Your manager asks: 'We're adding a feature that lets customers upload profile pictures. Is that a security problem?'",
+    "model": "Any upload feature adds to our attack surface and creates a new trust boundary, because we're accepting files from untrusted users. Running STRIDE over it, the main risks are tampering (malicious files disguised as images), denial of service (huge uploads), and elevation of privilege if a file can be executed on the server. I'd suggest we check file type and size, store uploads outside the web root, and serve them from a separate domain. That gives us defense in depth if one check fails."
+  },
+  "reflect": "Pick a place you know well (your home, school or workplace). What are its three most valuable assets, what is its biggest attack surface, and which single fix would cut off the most attack paths?"
+}

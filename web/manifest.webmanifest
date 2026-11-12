@@ -1,0 +1,16 @@
+{
+  "name": "Cyber30 — Think like a security expert",
+  "short_name": "Cyber30",
+  "description": "30 days of bite-sized lessons, labs and drills to think, speak and act like a security professional.",
+  "start_url": "./#/today",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

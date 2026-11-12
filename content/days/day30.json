@@ -1,0 +1,176 @@
+{
+  "day": 30,
+  "week": 5,
+  "title": "Capstone: Your First Full Engagement",
+  "theme": "Methodology & Career",
+  "minutes": 90,
+  "mindset": "Hacking is not one magic trick; it is a patient, repeatable method of asking the next good question and writing down the answer.",
+  "cards": [
+    {
+      "title": "The methodology: one loop, five stages",
+      "body": "Every engagement, from a practice box to a bank, follows the same path:\n1. **Recon**: what exists?\n2. **Enumeration**: what exactly is running, and how is it configured?\n3. **Exploitation**: can a weakness give me access?\n4. **Privilege escalation**: can I go from ordinary user to admin/root?\n5. **Reporting**: what did I find, why does it matter, how to fix it?\nIt is like a detective: survey the scene, interview witnesses, test a theory, follow the lead upstairs, write the case file."
+    },
+    {
+      "title": "Recon and enumeration: where most wins come from",
+      "body": "Beginners rush to exploits; professionals spend most of their time enumerating. Every open port is a door; every version number is a clue to look up. Ask for each service: **What is it? What version? Does it allow anonymous access? Are there default credentials? Is there a known CVE?** Keep notes as you go. A burglar who walks the whole street first finds the open window; one who kicks the first door makes noise and often fails."
+    },
+    {
+      "title": "From finding to foothold",
+      "body": "A **foothold** is your first access to a target, usually as a low-privilege user. You get it by matching an enumeration clue to a weakness: an outdated service with a public exploit (Day 11, `searchsploit`), weak or default passwords (Day 12), or a web flaw (Days 16-21). Prefer the simplest path. Before running any exploit, read what it does. Understanding beats copy-pasting, and blindly running code can crash the target or harm your own machine."
+    },
+    {
+      "title": "Privilege escalation and proving impact",
+      "body": "With a foothold, you re-enumerate from the inside (Day 23): `id`, `sudo -l`, SUID files, cron jobs, kernel version, readable config files with passwords. It is like getting into a building's lobby and then checking which staircases and key cabinets are unlocked. In a real engagement, the goal is to **prove impact**, such as reading a sensitive file, not to cause damage. Screenshot the proof (with `id` and `hostname` visible) and move on."
+    },
+    {
+      "title": "Notes: your second brain",
+      "body": "Professionals take structured notes during every engagement: a section per host with open ports, versions, credentials found, things tried, what worked and what did not, and timestamps. Tools like Obsidian, CherryTree or plain Markdown files all work. Good notes turn into the report almost directly, and they stop you repeating dead ends. Think of a pilot's checklist and logbook: boring, but the reason things go right under pressure."
+    },
+    {
+      "title": "Career roadmap: certifications",
+      "body": "A common path, in rough order:\n- **CompTIA Security+**: broad foundations; often required for entry-level and government jobs.\n- **eJPT** (INE): beginner, hands-on junior pentest exam.\n- **PNPT** (TCM Security): practical pentest including Active Directory and a report.\n- **OSCP** (OffSec): well-respected hands-on exam; a common requirement for pentest roles.\nDefender track: **CompTIA CySA+**, **BTL1** (Security Blue Team). Certs open interview doors; demonstrable skill and clear communication get the job."
+    },
+    {
+      "title": "Career roadmap: practice and portfolio",
+      "body": "Practise legally, a little every day:\n- **TryHackMe**: guided rooms, great next step after this course.\n- **Hack The Box**: harder machines, plus HTB Academy.\n- **PortSwigger Web Security Academy**: free, top-quality web labs.\n- **OverTheWire** (Bandit) and **picoCTF**: Linux and CTF basics.\n- **VulnHub** and Metasploitable: offline VMs.\nBuild a portfolio: write-ups of retired boxes (never active ones), a GitHub of small scripts, a home lab blog. Join local security meetups, BSides conferences and CTF teams."
+    }
+  ],
+  "attacks": [
+    {
+      "name": "The full attack chain on a vulnerable server",
+      "analogy": "A burglar who walks the street, tests each window, slips in through the one with a broken latch, then finds the master key hanging in the kitchen.",
+      "how": [
+        "Discover live hosts and open ports (nmap).",
+        "Enumerate service versions, shares and web directories (nmap -sV, enum4linux, gobuster).",
+        "Match an outdated service or weak credential to a known weakness (searchsploit, CVE lookup).",
+        "Gain a low-privilege foothold, then escalate to root using a local misconfiguration.",
+        "Prove impact and document every step for the report."
+      ],
+      "thinking": "Which of these many services is the oldest, the most misconfigured, or the most trusting? I only need one way in, and one way up.",
+      "signs": "Port scans in firewall/IDS logs, many failed logins, unusual processes spawned by network services, new outbound connections from servers, a web or FTP user suddenly running root commands.",
+      "defend": "Reduce attack surface (close unused services), patch, remove default credentials, least privilege on the host, central logging with alerts on scan patterns and unusual child processes."
+    }
+  ],
+  "story": {
+    "title": "Log4Shell (2021): methodology at internet scale",
+    "body": "In December 2021 a flaw in the Java logging library Log4j (CVE-2021-44228) let attackers run code on servers simply by getting a crafted text string logged, for example in a username or browser header. Within hours, attackers ran the exact methodology you learned: mass recon for exposed Java apps, enumeration of which ones logged user input, exploitation, then privilege escalation and ransomware or crypto-miners. Defenders who had an **asset inventory** and **central logging** could answer 'are we affected?' in hours; others took weeks. Lesson: attackers and defenders win with the same thing, method and preparation."
+  },
+  "lab": {
+    "title": "Capstone: recon to report on Metasploitable 2",
+    "goal": "Run the full methodology against your own Metasploitable 2 VM and produce a short report with at least three findings.",
+    "steps": [
+      "In VirtualBox, put Kali and Metasploitable 2 on the same **Host-only** network so the vulnerable VM cannot reach the internet. Log in to Metasploitable (msfadmin/msfadmin) and run `ip a` to note its IP (replace TARGET below).",
+      "Recon: find live hosts, then all open ports and versions. Record them in your notes.",
+      "Enumerate: check SMB shares/users, web directories and anonymous FTP. List every version and look each up with searchsploit.",
+      "Exploit and escalate: choose one finding, gain a foothold using the techniques from Days 12 and 22, then use Day 23's checklist to reach root. Screenshot `id; hostname` as proof.",
+      "Report: write an executive summary and at least three findings (severity, evidence, impact, fix) following Day 29's structure."
+    ],
+    "commands": [
+      {
+        "cmd": "sudo nmap -sn 192.168.56.0/24",
+        "explain": "Ping sweep (`-sn`, no port scan) of VirtualBox's default host-only network to find live hosts. Adjust the range if your host-only network differs."
+      },
+      {
+        "cmd": "sudo nmap -sC -sV -p- -oA capstone_full TARGET",
+        "explain": "Scans all 65,535 TCP ports (`-p-`), detects versions (`-sV`), runs safe default scripts (`-sC`), saves all output formats (`-oA`) as evidence."
+      },
+      {
+        "cmd": "searchsploit vsftpd 2.3.4",
+        "explain": "Searches the local Exploit-DB copy for known exploits matching a service and version you found. Repeat for every version in your scan."
+      },
+      {
+        "cmd": "enum4linux -a TARGET | tee enum4linux.txt",
+        "explain": "Enumerates SMB/Samba: users, shares, groups and policies (`-a` runs all simple checks). `tee` shows output and saves it to a file."
+      },
+      {
+        "cmd": "gobuster dir -u http://TARGET/ -w /usr/share/wordlists/dirb/common.txt -o gobuster.txt",
+        "explain": "Brute-forces common web directory names on the target's web server to find hidden pages, saving results to `gobuster.txt`."
+      }
+    ],
+    "safety": "Metasploitable 2 is intentionally very vulnerable: keep it on a Host-only or internal VirtualBox network, never bridged or exposed to the internet. Only attack VMs you own or platforms that grant permission (TryHackMe, Hack The Box). Scanning or exploiting any other system without written authorisation is illegal."
+  },
+  "hunt": "Your Metasploitable scan shows: FTP vsftpd 2.3.4, SSH OpenSSH 4.7p1, Telnet open, Samba 3.x, MySQL 5.0 listening on all interfaces, and a web server with /phpMyAdmin. If you were the defender, which three would you fix first and why?\n\nAnswer: (1) **vsftpd 2.3.4**: this exact version was distributed with a known backdoor, giving direct remote access; remove or upgrade immediately. (2) **Telnet**: sends passwords in plaintext (Day 6); disable and use SSH. (3) **MySQL and phpMyAdmin exposed with possible default/weak credentials**: direct access to data; bind MySQL to localhost, restrict phpMyAdmin, set strong passwords. Then upgrade the very old SSH and Samba. Prioritise by exposure, ease of exploitation and impact.",
+  "terms": [
+    {
+      "term": "Methodology",
+      "def": "A repeatable, ordered process for testing so nothing important is skipped.",
+      "use": "\"Our methodology follows recon, enumeration, exploitation, post-exploitation and reporting.\""
+    },
+    {
+      "term": "Foothold",
+      "def": "Initial, usually low-privilege access to a target system.",
+      "use": "\"We got a foothold as www-data through the file upload, then escalated via a sudo misconfig.\""
+    },
+    {
+      "term": "Attack surface",
+      "def": "All the points where an attacker could try to get in: open ports, apps, users, APIs.",
+      "use": "\"Shutting down Telnet and FTP shrinks the attack surface immediately.\""
+    },
+    {
+      "term": "Scope",
+      "def": "The exact systems and activities you are authorised to test.",
+      "use": "\"That IP isn't in scope, so we stop and confirm with the client before touching it.\""
+    },
+    {
+      "term": "Proof of impact",
+      "def": "Evidence showing what an attacker could actually achieve, gathered without causing harm.",
+      "use": "\"A screenshot of root's id and hostname is enough proof of impact; no need to touch data.\""
+    },
+    {
+      "term": "CTF (Capture The Flag)",
+      "def": "A legal security competition or practice game where you find hidden 'flags' by solving challenges.",
+      "use": "\"I sharpened my web skills playing picoCTF and writing up the solutions.\""
+    }
+  ],
+  "quiz": [
+    {
+      "q": "What is the correct order of a typical engagement?",
+      "options": [
+        "Exploit, recon, report, privesc, enumerate",
+        "Recon, enumeration, exploitation, privilege escalation, reporting",
+        "Report, recon, exploit, enumerate, privesc",
+        "Privesc, exploit, enumerate, recon, report"
+      ],
+      "answer": 1,
+      "why": "Each stage feeds the next: you can't exploit what you haven't found and enumerated."
+    },
+    {
+      "q": "Why should Metasploitable 2 be on a Host-only network?",
+      "options": [
+        "It runs faster",
+        "Nmap requires it",
+        "It is deliberately vulnerable and must not be reachable from other networks or the internet",
+        "Metasploitable cannot use NAT"
+      ],
+      "answer": 2,
+      "why": "Exposing an intentionally vulnerable machine invites real attackers onto your network."
+    },
+    {
+      "q": "Which certification is widely known as a hands-on, practical pentest exam often requested for pentester jobs?",
+      "options": [
+        "OSCP",
+        "CompTIA A+",
+        "ITIL Foundation",
+        "PMP"
+      ],
+      "answer": 0,
+      "why": "OffSec's OSCP requires compromising machines in a timed practical exam and submitting a report."
+    },
+    {
+      "q": "Where do most successful compromises come from, according to experienced testers?",
+      "options": [
+        "Brand-new zero-days",
+        "Guessing randomly",
+        "Expensive commercial tools",
+        "Thorough enumeration revealing outdated services and misconfigurations"
+      ],
+      "answer": 3,
+      "why": "Careful enumeration usually finds a known, simple weakness long before any exotic technique is needed."
+    }
+  ],
+  "talk": {
+    "scenario": "In a junior security interview, you're asked: 'Walk me through how you'd approach a machine you've never seen before.'",
+    "model": "I start by confirming scope, then do recon with an nmap sweep and a full port scan with version detection, saving output as evidence. Next I enumerate each service: anonymous access, default credentials, web directories with gobuster, SMB with enum4linux, and I check every version against searchsploit and CVE databases. I pick the simplest viable path to a foothold, then re-enumerate locally for privilege escalation using things like sudo -l, SUID binaries and cron jobs. Throughout I keep timestamped notes, so I can write a report with clear severity, impact and remediation for each finding."
+  },
+  "reflect": "Look back at Day 1. What do you notice now when you look at a website, an email or a login page that you didn't notice 30 days ago? What will you practise next week?"
+}
