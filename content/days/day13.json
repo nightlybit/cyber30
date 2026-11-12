@@ -1,0 +1,67 @@
+{
+  "day": 13,
+  "week": 3,
+  "title": "The Person in the Middle",
+  "theme": "Network Attacks",
+  "minutes": 50,
+  "mindset": "On a shared network, 'who am I talking to?' is a claim, not a fact, unless cryptography proves it.",
+  "cards": [
+    { "title": "What 'man-in-the-middle' means", "body": "Imagine passing notes in class through a classmate. If that classmate reads, or quietly rewrites, every note, you would never know. That's a **man-in-the-middle (MITM)** attack: an attacker secretly sits between two parties who think they are talking directly. They can **watch** (steal passwords, cookies) or **change** (swap a download link, alter a bank account number). The two victims see a normal conversation. The attacker sees everything." },
+    { "title": "Why local networks trust too easily", "body": "On your home or café Wi-Fi, devices find each other with **ARP** (Address Resolution Protocol). Your laptop shouts: 'Who has 192.168.1.1, the router?' and accepts the first answer: 'Me! My MAC address is aa:bb:cc...'. ARP has **no proof of identity**. It's like asking a crowded room 'Who's the manager?' and handing your money to whoever raises a hand. That trust is the weak spot MITM attacks use." },
+    { "title": "ARP spoofing in plain words", "body": "In **ARP spoofing** (or ARP poisoning), the attacker keeps announcing 'I am the router' to your laptop, and 'I am the laptop' to the router. Both update their address books (ARP caches). Now all your traffic to the internet flows through the attacker's machine first, which forwards it on so nothing seems broken. You keep browsing normally while someone reads along." },
+    { "title": "DNS spoofing: the fake phone book", "body": "DNS turns names like `bank.com` into IP addresses. If an attacker is in the middle, or poisons a DNS cache, they can answer 'bank.com is at **my** IP'. You type the right name and land on the wrong server. It's like someone swapping a page in the phone book: you dial the 'bank' number and a criminal picks up, sounding very official." },
+    { "title": "Why HTTPS saves you (most of the time)", "body": "HTTPS encrypts traffic and, crucially, **proves the server's identity** with a certificate signed by a trusted authority. A MITM can still carry your encrypted packets, but can't read them, and can't fake `bank.com`'s certificate. Your browser would show a big warning. The danger moment is when people **click through certificate warnings**, or when a site still allows plain HTTP." },
+    { "title": "HSTS and the downgrade trick", "body": "Attackers try **SSL stripping**: they keep you on plain `http://` so there's nothing to break. **HSTS** (HTTP Strict Transport Security) is a header that tells your browser: 'Only ever talk to me over HTTPS, for the next year.' After one visit, the browser refuses plain HTTP for that site. Big sites are even **preloaded** into browsers, so protection starts on the very first visit." },
+    { "title": "How defenders think about it", "body": "Defenders assume the local network is hostile, especially public Wi-Fi. Their layers: **encrypt everything** (HTTPS, SSH, VPN), **verify identity** (certificates, never ignore warnings), and **harden the network** (Dynamic ARP Inspection and DHCP snooping on business switches, client isolation on Wi-Fi). The attacker's mindset is 'Where does trust happen without proof?' The defender's is 'Make every trust decision require proof.'" }
+  ],
+  "attacks": [
+    {
+      "name": "ARP spoofing / poisoning",
+      "analogy": "Someone in a crowded office keeps shouting 'I'm the mail room!' so everyone hands them their letters, which they read, then forward on.",
+      "how": ["The attacker joins the same local network (e.g. café Wi-Fi).", "They send fake ARP replies: to the victim, 'the router's IP is at my MAC'; to the router, 'the victim's IP is at my MAC'.", "Both devices update their ARP caches with the lie.", "Traffic now flows through the attacker, who forwards it so nothing looks broken, while reading or altering unencrypted data."],
+      "thinking": "\"This protocol accepts answers nobody asked for, and never checks who sent them. If I answer first and often, I become whoever I claim to be.\"",
+      "signs": "Two different IPs mapping to the same MAC in `ip neigh`; the router's MAC suddenly changing; IDS alerts (Snort/Suricata, arpwatch) for ARP floods; certificate warnings appearing for sites that normally work.",
+      "defend": "Encrypt everything (HTTPS/HSTS, VPN on public Wi-Fi). On business networks: Dynamic ARP Inspection + DHCP snooping on switches, 802.1X, Wi-Fi client isolation. Monitor with arpwatch."
+    },
+    {
+      "name": "SSL stripping (HTTPS downgrade)",
+      "analogy": "A fake receptionist tells you the secure meeting room is 'closed today', so you have the conversation in the open lobby instead.",
+      "how": ["The victim types `bank.com` (no https), so the first request goes out as plain HTTP.", "The MITM intercepts it and talks HTTPS to the real bank, but keeps the victim on HTTP.", "The victim sees a working site without the padlock; most people don't notice.", "Passwords typed in are sent in clear text through the attacker."],
+      "thinking": "\"I can't break the encryption, so I'll stop it from ever starting. The weakest moment is the very first, unencrypted request.\"",
+      "signs": "No padlock or `http://` on a site that is normally HTTPS; login pages over HTTP; network monitoring showing HTTP sessions to sites that should be HTTPS-only.",
+      "defend": "HSTS with long max-age plus preload list; redirect all HTTP to HTTPS; users check for the padlock; browsers' HTTPS-only mode; VPN on untrusted networks."
+    }
+  ],
+  "story": { "title": "Superfish on Lenovo laptops (2015)", "body": "Some Lenovo laptops shipped with adware called **Superfish** that injected ads into web pages. To do this even on HTTPS sites, it installed its own root certificate and acted as a man-in-the-middle **inside the laptop**. Worse, every laptop used the **same private key**, which researchers quickly extracted. Anyone on the same Wi-Fi could then impersonate any HTTPS website to those users. Lesson: the trust chain of HTTPS is only as strong as the certificates your device trusts, and 'convenience' software can quietly break it." },
+  "lab": {
+    "title": "See ARP and spot the warning signs on YOUR network",
+    "goal": "Read your own ARP table, watch ARP traffic, and learn what a poisoning attack would look like, without attacking anyone.",
+    "steps": ["Connect your Kali machine to your own home network.", "List your ARP cache and note the router's IP and MAC.", "Watch live ARP traffic for a minute in Wireshark or tcpdump.", "Check that no two IPs share one MAC, which is the classic poisoning sign.", "Look up your bank's site on hstspreload.org to see if it's HSTS-preloaded."],
+    "commands": [
+      { "cmd": "ip route | grep default", "explain": "Shows your **default gateway**, which is the router's IP that all internet traffic goes to." },
+      { "cmd": "ip neigh", "explain": "Your **ARP cache**: which MAC address your machine believes owns each local IP. Note the router's MAC." },
+      { "cmd": "sudo tcpdump -i any -n arp", "explain": "Prints every ARP 'who-has' question and 'is-at' answer live. Press Ctrl+C to stop. Lots of unsolicited 'is-at' replies would be suspicious." },
+      { "cmd": "ip neigh | awk '{print $5}' | sort | uniq -d", "explain": "Prints any MAC address that appears for **more than one IP**. Empty output is good. A repeated router MAC is a red flag." },
+      { "cmd": "curl -sI https://github.com | grep -i strict-transport", "explain": "Fetches only the headers and shows the **HSTS** header if the site sends one." }
+    ],
+    "safety": "Only observe your own network. Running ARP spoofing tools (e.g. arpspoof, bettercap) on networks you don't own, including café, school or work Wi-Fi, is illegal interception in most countries. Practise MITM attacks only in an isolated virtual lab you own."
+  },
+  "hunt": "A coffee shop offers free open Wi-Fi with no password. Its login page is served at `http://wifi-login.local` and asks for your email and a password 'to remember you next time'. Many customers reuse their email password there. What's wrong?\n\nAnswer: Several things. The network is open, so traffic between devices isn't protected and client isolation is likely off, making ARP spoofing easy. The login page is plain HTTP, so anyone in the middle can read the password. And it collects a password that people reuse elsewhere. Fix: WPA3/enhanced open, client isolation, HTTPS captive portal, and never ask for a password you don't need.",
+  "terms": [
+    { "term": "MITM (man-in-the-middle)", "def": "An attacker secretly relays, and can read or change, communication between two parties who think they're talking directly.", "use": "\"Public Wi-Fi without client isolation is a MITM playground, so we push everything over the VPN.\"" },
+    { "term": "ARP spoofing", "def": "Sending fake ARP replies so other devices map an IP (often the router) to the attacker's MAC address.", "use": "\"The IDS flagged ARP spoofing: the gateway's MAC changed three times in a minute.\"" },
+    { "term": "ARP cache", "def": "A device's short-term memory of which MAC address belongs to which local IP.", "use": "\"Check the victim's ARP cache. If the gateway maps to a laptop's MAC, it's been poisoned.\"" },
+    { "term": "HSTS", "def": "A web header telling browsers to only ever use HTTPS for a site, blocking downgrade attacks.", "use": "\"Without HSTS the login page is open to SSL stripping on the first request.\"" },
+    { "term": "SSL stripping", "def": "A MITM trick that keeps the victim on plain HTTP while the attacker talks HTTPS to the real site.", "use": "\"SSL stripping only works because the first request went out over HTTP.\"" },
+    { "term": "Dynamic ARP Inspection (DAI)", "def": "A switch feature that drops ARP replies that don't match known IP-to-MAC bindings.", "use": "\"Turn on DHCP snooping and DAI on the access switches to kill ARP poisoning.\"" }
+  ],
+  "quiz": [
+    { "q": "Why is ARP easy to abuse?", "options": ["It uses strong encryption", "It accepts replies without any proof of identity", "It only works on the internet, not locally", "It requires a password"], "answer": 1, "why": "ARP trusts any answer, even unsolicited ones. There is no authentication, so an attacker can claim any IP." },
+    { "q": "You're on hotel Wi-Fi and your bank shows a certificate warning. What should you do?", "options": ["Click 'proceed anyway', the hotel is safe", "Refresh until it goes away", "Stop. Disconnect or use a VPN/mobile data; this may be a MITM", "Turn off the firewall"], "answer": 2, "why": "A certificate warning on a site that normally works is a classic MITM sign. Never click through it." },
+    { "q": "What does HSTS protect against?", "options": ["SQL injection", "Being downgraded from HTTPS to HTTP", "Weak passwords", "Phishing emails"], "answer": 1, "why": "HSTS forces the browser to use HTTPS, so SSL-stripping downgrades fail." },
+    { "q": "In `ip neigh` output, what is suspicious?", "options": ["The router has a MAC address", "Two different IPs share the same MAC, one being the router", "There are more than three entries", "Entries say REACHABLE"], "answer": 1, "why": "If the gateway IP and another device map to the same MAC, someone is likely claiming to be the router." },
+    { "q": "Which is the strongest defence for a user on untrusted Wi-Fi?", "options": ["Incognito mode", "A trusted VPN plus HTTPS everywhere", "Turning off Bluetooth", "Clearing cookies"], "answer": 1, "why": "A VPN plus HTTPS encrypts your traffic, so a MITM sees only gibberish. Incognito mode only stops your own browser saving history; it does nothing against network attacks." }
+  ],
+  "talk": { "scenario": "Your manager asks: 'Staff work from cafés a lot. Is that actually a risk, or is it paranoia?'", "model": "It's a real but manageable risk. Open café Wi-Fi lets anyone on the same network attempt a man-in-the-middle, for example by ARP spoofing to sit between laptops and the router. HTTPS with HSTS protects most web traffic, but legacy apps, certificate warnings people click through, and anything over plain HTTP are exposed. My recommendation is an always-on VPN for company laptops plus training to never bypass certificate warnings." },
+  "reflect": "Explain to a friend, using the 'passing notes in class' analogy, why HTTPS still protects them even if someone is in the middle."
+}
